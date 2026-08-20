@@ -674,7 +674,7 @@
     {
       "id": "P2",
       "title": "STFPM 통합",
-      "status": "ready",
+      "status": "done",
       "depends_on": [
         "P1"
       ],
@@ -687,7 +687,7 @@
         {
           "id": "P2-T01",
           "title": "StfpmAdapter 및 no-download 모델 팩토리 구현",
-          "status": "pending",
+          "status": "done",
           "description": "AnomalyAdapter를 상속해 train_step에서 upstream STFPMLoss를 호출하고, upstream 출력을 {pred_score, anomaly_map} 계약으로 변환한다. 함께 adapters/stfpm.py에 모델 팩토리를 두어, timm pretrained를 False로 강제한 상태에서 upstream STFPMModel을 생성한 뒤 teacher feature extractor에만 로컬 .pth를 적재한다(SPEC §4.6 A안). 치환 대상은 timm.create_model이며 pretrained=False와 pretrained_cfg=None을 강제한다. teacher는 항상 eval() 유지한다.",
           "prd_refs": [
             "CON-001",
@@ -751,7 +751,7 @@
         {
           "id": "P2-T02",
           "title": "STFPM config 작성",
-          "status": "pending",
+          "status": "done",
           "description": "configs/anomaly/stfpm.yaml에 SGD(lr 0.4, momentum 0.9, weight_decay 0.001), scheduler 없음, backbone 가중치 경로를 지정한다. 모델 등록명은 adapters/stfpm.py의 팩토리(SPEC §4.6)에 연결하며, 팩토리는 upstream nn.Module을 반환한다.",
           "prd_refs": [
             "FR-008",
@@ -798,7 +798,7 @@
         {
           "id": "P2-T03",
           "title": "STFPM end-to-end 동작 확인",
-          "status": "pending",
+          "status": "done",
           "description": "train/evaluate/predict가 동작하는지 짧은 실행으로 확인한다. 성능 판정은 P3에서 사용자가 수행한다.",
           "prd_refs": [
             "FR-003",

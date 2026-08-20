@@ -19,6 +19,24 @@ def smooth_anomaly_map(anomaly_map, sigma):
     return smoothed.squeeze(1)
 
 
+def to_output_dict(outputs):
+    """Normalize a model's eval-mode forward() return value to the shared SPEC SS3 contract
+    {"pred_score": (B,), "anomaly_map": (B, H, W)}. anomalib upstream torch_model.py returns
+    InferenceBatch, a NamedTuple, whose pred_score/anomaly_map carry a singleton class/channel
+    dim -- (B, 1) / (B, 1, H, W) -- that every consumer here (metric update, smoothing,
+    compute_thresholds) does not expect. From-scratch models (e.g. custom_ae) already return a
+    plain dict shaped (B,) / (B, H, W), which the ndim checks below leave untouched. Duck-typed
+    on _asdict/ndim so this stays generic across any upstream model instead of branching on model
+    name (NFR-005); P2 confirmed the singleton dims empirically against STFPM (SPEC SS3/SS4.4)."""
+    if hasattr(outputs, "_asdict"):
+        outputs = outputs._asdict()
+    if outputs.get("pred_score") is not None and outputs["pred_score"].ndim == 2:
+        outputs["pred_score"] = outputs["pred_score"].squeeze(1)
+    if outputs.get("anomaly_map") is not None and outputs["anomaly_map"].ndim == 4:
+        outputs["anomaly_map"] = outputs["anomaly_map"].squeeze(1)
+    return outputs
+
+
 def best_f1_threshold(scores, labels):
     """Sweep every distinct score as a candidate threshold ("predict positive if score >=
     threshold") and return the one maximizing F1, via one O(n log n) sort instead of an O(n^2)
@@ -69,7 +87,7 @@ def compute_thresholds(model, valid_loader, device, smooth_sigma):
     with torch.no_grad():
         for images, targets in valid_loader:
             images = images.to(device)
-            outputs = model(images)
+            outputs = to_output_dict(model(images))
             maps = smooth_anomaly_map(outputs["anomaly_map"], smooth_sigma)
             labels = torch.stack([t["label"] for t in targets]).to(device)
             masks = torch.stack([t["mask"] for t in targets]).to(device)

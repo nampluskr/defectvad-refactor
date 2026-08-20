@@ -3,7 +3,7 @@ import torch
 from src.core.adapter import TaskAdapter
 from src.core.registry import ADAPTERS
 from src.tasks.anomaly.collate import anomaly_collate
-from src.tasks.anomaly.postprocess import compute_thresholds, smooth_anomaly_map
+from src.tasks.anomaly.postprocess import compute_thresholds, smooth_anomaly_map, to_output_dict
 
 
 @ADAPTERS.register("anomaly")
@@ -43,7 +43,7 @@ class AnomalyAdapter(TaskAdapter):
     def eval_step(self, model, batch, device):
         images = batch[0].to(device)
         targets = batch[1]
-        outputs = model(images)
+        outputs = to_output_dict(model(images))
         labels = torch.stack([t["label"] for t in targets]).to(device)
         masks = torch.stack([t["mask"] for t in targets]).to(device)
         maps = self._smooth(outputs["anomaly_map"])
@@ -74,7 +74,7 @@ class AnomalyAdapter(TaskAdapter):
     def predict_step(self, model, batch, device):
         images = batch[0].to(device)
         raw_ids = batch[1] if len(batch) > 1 else None
-        outputs = model(images)
+        outputs = to_output_dict(model(images))
         maps = self._smooth(outputs["anomaly_map"])
         self._last_maps = maps.detach().cpu()
 

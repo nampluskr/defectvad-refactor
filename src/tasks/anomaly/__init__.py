@@ -1,1 +1,10 @@
-from src.tasks.anomaly import adapter, collate, dataset, metric, models, transform  # noqa: F401
+from src.tasks.anomaly import (  # noqa: F401
+    adapter,
+    adapters,
+    collate,
+    dataset,
+    metric,
+    models,
+    transform,
+    upstream,
+)

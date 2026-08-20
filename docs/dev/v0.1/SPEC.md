@@ -109,7 +109,7 @@ anomalib v2.3.0 원본을 확인한 결과 두 가지가 드러났다.
 | 책임 | 위치 | 비고 |
 |---|---|---|
 | 네트워크·알고리즘 | `upstream/` anomalib 원본 | 수정 금지 |
-| forward 호출과 출력 변환 | 모델별 adapter | anomalib 출력 → `{"pred_score", "anomaly_map"}` |
+| forward 호출과 출력 변환 | 공통 `AnomalyAdapter` + `postprocess.py#to_output_dict` | anomalib `InferenceBatch` → `{"pred_score", "anomaly_map"}` (아래 참조) |
 | loss 계산 | 모델별 adapter | `upstream`의 loss 모듈 호출 |
 | lifecycle hook | 모델별 adapter | `on_fit_start` / `on_epoch_end` 등 |
 | metric·post-processing | 공통 `AnomalyAdapter` | 기존 코드 재사용 |
@@ -130,6 +130,16 @@ return BUILDERS.build(spec["name"], trainable, **spec.get("params", {}))
 BRIEF는 EfficientAD optimizer를 "student + autoencoder 파라미터"로 명시하는데, teacher를 `requires_grad_(False)`로 freeze하면 위 필터가 그대로 그 집합을 만든다. STFPM도 teacher freeze로 동일하다. 따라서 **v0.1 두 모델은 config만으로 충족되며 `build_optimizer`를 바꿀 필요가 없다.**
 
 다만 서로 다른 lr을 갖는 복수 parameter group을 요구하는 모델은 이 방식으로 표현할 수 없다. v0.1 범위 밖이므로 지금은 다루지 않고, 그런 모델을 만나면 `core/builders.py`에 group 지정 방식을 추가한다(§7).
+
+#### `InferenceBatch` → 출력 계약 변환 (P2에서 확정)
+
+anomalib `torch_model.py`는 eval 모드에서 dict가 아니라 `InferenceBatch`(`NamedTuple`, `upstream/components/data/torch_base.py`)를 반환하고, `pred_score`/`anomaly_map`에 각각 `(B, 1)`/`(B, 1, H, W)`처럼 크기 1인 클래스·채널 축이 남아 있다(§1 계약 표의 `(B,)`/`(B,H,W)`와 다르다). 이 변환은 STFPM 하나만의 문제가 아니라 `InferenceBatch`를 쓰는 모든 upstream 모델에 공통이므로(EfficientAD도 같은 패턴, §4.5), 모델별 adapter마다 반복하지 않고 `tasks/anomaly/postprocess.py#to_output_dict()`에 한 번 둔다.
+
+- `_asdict()`가 있으면(= NamedTuple) dict로 변환한다.
+- `pred_score`가 2차원이면 마지막 축을 squeeze, `anomaly_map`이 4차원이면 채널 축을 squeeze한다.
+- `custom_ae`처럼 이미 `(B,)`/`(B,H,W)` dict를 반환하는 모델은 조건에 걸리지 않아 그대로 통과한다.
+
+`AnomalyAdapter.eval_step`/`predict_step`과 `postprocess.py#compute_thresholds`가 모두 `model(images)`를 직접 이 함수에 통과시킨 뒤 사용한다. 모델 이름으로 분기하지 않고 반환 타입·shape로만 판단하므로 NFR-005에 저촉되지 않는다.
 
 ### 4.3 모델별 adapter 구조
 
@@ -263,11 +273,13 @@ EfficientAD는 예상대로 `torch_model.py` 밖이다. `models/efficientad/mode
 
 `features_only=True`로 만든 timm 추출기는 classifier head를 갖지 않는다. 따라서 torchvision `resnet18-f37072fd.pth`를 그대로 넣으면 `fc.weight`/`fc.bias`가 unexpected key가 되어 `strict=True`는 실패한다. defectvad는 이를 `strict=False`로 넘겼는데, 그러면 backbone 본체가 통째로 어긋나도 조용히 지나간다.
 
-이 프로젝트는 다음 조건으로 대체한다. `load_local_weights(..., strict=False)`로 적재하되 반환된 `missing`/`unexpected`를 팩토리가 직접 판정한다.
+이 프로젝트는 다음 조건으로 대체한다. `load_local_weights(..., strict=False)`로 적재하되 반환된 `missing`/`unexpected`를 팩토리가 직접 판정한다(`load_local_weights`는 이제 `(model, missing, unexpected)`를 반환한다 — 기존 5개 호출부는 모두 반환값을 버리는 단문 호출이라 영향 없다).
 
 - `missing`이 비어 있지 않으면 `LocalAssetError`로 실패시킨다. 추출기가 요구하는 파라미터가 채워지지 않은 것이므로 예외 없이 오류다.
-- `unexpected`는 classifier head(`fc.`, `head.` 접두사)에 한해 허용하고, 그 외 키가 하나라도 있으면 실패시킨다.
-- 허용된 경우에도 무엇이 버려졌는지 로그로 남긴다.
+- `unexpected`는 **팩토리가 `state_dict()` 최상위 키 이름 집합을 미리 계산해, 그 집합에 없는 이름의 키만 허용**한다. 그 외(추출기가 실제로 갖고 있는 최상위 이름인데도 unexpected로 나온) 키가 하나라도 있으면 실패시킨다.
+- 허용된 경우에도 `load_local_weights`가 무엇이 버려졌는지 로그로 남긴다.
+
+**P2에서 확인된 사실 — classifier head뿐이 아니었다.** 당초 예상은 unexpected가 `fc.`/`head.` 접두사(분류기 head)뿐이라는 것이었다. 실제로 `layers=["layer1","layer2","layer3"]`(기본값)로 timm `features_only=True` 추출기를 만들면, timm이 `out_indices`에 없는 뒤쪽 스테이지(`layer4`)를 **모델에서 통째로 제거**한다. 따라서 torchvision 전체 resnet18 체크포인트를 얹으면 `layer4.*`도 `fc.*`와 함께 unexpected로 나온다(missing은 0개). 고정된 접두사 허용 목록(`fc.`, `head.`)은 이 경우를 놓친다. 대신 추출기가 실제로 갖고 있지 않은 최상위 서브모듈 이름의 키는 무엇이든 "구조적으로 존재하지 않아 버려도 되는 키"로 취급하고, 추출기가 갖고 있는 이름인데도 unexpected로 나오는 키만 실패로 판정한다 — 이쪽이 진짜 이름 불일치(값이 있어야 할 자리에 못 들어간 경우)를 가리키기 때문이다.
 
 #### backbone 가중치 출처 불일치
 
@@ -387,7 +399,7 @@ config가 만들어지는 경로는 두 곳이며 **둘 다** 치환을 거쳐�
 | 기존 hook만으로 EfficientAD lifecycle이 충분한지 | P1 |
 | auxiliary transform이 `transform.py`에 별도로 필요한지 (§4.5) | P4 (upstream `torch_model.py` 확인 후) |
 | ~~`InferenceBatch` 조달 방식~~ | 완료 — P0-T03, `dataclasses/torch/base.py` + `dataclasses/generic.py` 파일째 복사(§3) |
-| torchvision resnet18 state_dict의 unexpected key가 classifier head뿐인지 (§4.6) | P2 |
+| ~~torchvision resnet18 state_dict의 unexpected key가 classifier head뿐인지 (§4.6)~~ | 완료 — P2. 아니었다: `layer4.*`도 unexpected(timm이 뒤쪽 스테이지를 제거). 최상위 서브모듈 존재 여부 기반 판정으로 대체(§4.6) |
 | EfficientAD 학습 budget — batch size 1에서 몇 epoch을 돌릴지 | P4 (PRD §5에 따라 사용자 실행 시간과 함께 판단) |
 | MVTec 대표 3개 카테고리 선정 | P3 |
 | 복수 parameter group을 요구하는 모델의 optimizer 표현 (§4.2) | v0.1 범위 밖 |

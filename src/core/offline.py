@@ -106,7 +106,12 @@ def disable_offline_guard():
 
 
 def load_local_weights(model, weights_path, strict=True, map_location="cpu", key_map=None):
-    """Load a local .pth/.pt checkpoint into model. Never downloads."""
+    """Load a local .pth/.pt checkpoint into model. Never downloads.
+
+    Returns (model, missing, unexpected) -- existing callers that use this as a bare statement
+    (classification/detection/segmentation backbones, all strict=True) are unaffected; a caller
+    that needs its own pass/fail judgment on a non-strict load (e.g. STFPM teacher, SPEC SS4.6)
+    can inspect the returned key lists instead of trusting the load silently."""
     if weights_path is None or not os.path.isfile(weights_path):
         raise LocalAssetError(
             f"Local weights file not found: {weights_path}\n"
@@ -127,7 +132,7 @@ def load_local_weights(model, weights_path, strict=True, map_location="cpu", key
             f"[load_local_weights] non-strict load from {weights_path}: "
             f"missing={list(missing)}, unexpected={list(unexpected)}"
         )
-    return model
+    return model, missing, unexpected
 
 
 def torch_load(weights_path, map_location):

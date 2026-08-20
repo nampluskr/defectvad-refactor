@@ -3,3 +3,12 @@ model:
   name: stfpm_anomaly
   params:
     weights_path: ${paths.backbone_root}/resnet18-f37072fd.pth
+
+adapter:
+  name: stfpm
+
+# SPEC SS4.4: SGD lr 0.4, momentum 0.9, weight_decay 0.001, no scheduler -- lightning_model.py's
+# configure_optimizers ported to config values only, no lightning import (CON-002).
+optim:
+  optimizer: {name: sgd, params: {lr: 0.4, momentum: 0.9, weight_decay: 0.001}}
+  scheduler: null
