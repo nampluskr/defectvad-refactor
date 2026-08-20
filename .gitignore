@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# datasets, weights, checkpoints, experiment artifacts are never committed
+outputs/
+checkpoints/
+*.pth
+*.pt
+*.ckpt
+
+.vscode/
+.idea/

@@ -1,0 +1,390 @@
+{
+  "schema_version": "1.0",
+  "source_documents": {"brief": "BRIEF.md", "prd": "PRD.md", "spec": "SPEC.md", "plan": "PLAN.md"},
+  "status_values": ["pending", "ready", "in_progress", "blocked", "verification", "done"],
+  "phases": [
+    {
+      "id": "P0",
+      "title": "Reference Contract and Baseline Frozen",
+      "status": "ready",
+      "depends_on": [],
+      "exit_criteria": ["실제 implementation commit과 target anomalib commit이 고정된다.", "초기 모델, category, split, metric 및 compute profile이 승인된다.", "required local asset이 식별되고 silent fallback 없이 검증 가능하다.", "reference raw result와 environment/protocol metadata가 연결된다.", "SC-001이 해결되거나 P1을 명시적으로 차단한다."],
+      "tasks": [
+        {
+          "id": "P0-T01", "title": "Freeze implementation checkout and reconcile the specification", "status": "ready",
+          "description": "Identify the real checkout, commit, and local changes; reconcile SPEC paths and APIs without a workaround.",
+          "prd_refs": ["FR-022", "NFR-002", "CON-012", "GAP-011"], "spec_refs": ["SPEC §1.2", "SPEC §2", "SPEC §21", "SPEC §22"],
+          "depends_on": [], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "core",
+          "scope": {"allowed": ["repository inspection", "conflict record"], "avoid": ["source implementation", "SPEC bypass"]},
+          "verification": ["Record commit, worktree, and component-path reconciliation."], "completion_criteria": ["Implementation target is unambiguous and conflicts are approved or blocking."], "artifacts": ["checkout identity", "conflict report"]
+        },
+        {
+          "id": "P0-T02", "title": "Approve initial model, dataset, split, metric, and budget scope", "status": "pending",
+          "description": "Freeze initial models, MVTec scope, split, metrics, repeats, and benchmark budget.",
+          "prd_refs": ["FR-009", "FR-016", "FR-019", "NFR-001", "NFR-012", "CON-008", "CON-009", "CON-010"], "spec_refs": ["SPEC §5.2", "SPEC §5.3", "SPEC §11.2", "SPEC §11.4", "SPEC §12.2", "SPEC §21"],
+          "depends_on": ["P0-T01"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "benchmark",
+          "scope": {"allowed": ["protocol decisions"], "avoid": ["unapproved implementation"]},
+          "verification": ["Validate completeness and consistency of all scope decisions."], "completion_criteria": ["D-003 through D-007 and D-014 are approved."], "artifacts": ["initial-scope manifest"]
+        },
+        {
+          "id": "P0-T03", "title": "Inventory local assets and dependency constraints", "status": "pending",
+          "description": "Inventory local datasets, weights, auxiliary data, checksums, formats, and package availability without downloads.",
+          "prd_refs": ["FR-008", "FR-023", "NFR-006", "NFR-014", "CON-006", "CON-007"], "spec_refs": ["SPEC §6.4", "SPEC §13.3", "SPEC §16", "SPEC §19", "SPEC §21"],
+          "depends_on": ["P0-T02"], "parallelizable": true, "parallel_group": "BASELINE-PREP", "execution_mode": "parallel", "suggested_agent_role": "test",
+          "scope": {"allowed": ["asset inventory", "dependency audit"], "avoid": ["network download", "runtime changes"]},
+          "verification": ["Verify required/optional assets and checksums."], "completion_criteria": ["Each required asset has a path or blocker."], "artifacts": ["asset inventory", "dependency report"]
+        },
+        {
+          "id": "P0-T04", "title": "Pin upstream source, license, and reference environment", "status": "pending",
+          "description": "Pin anomalib source/config, license, transport, and a reference-only environment.",
+          "prd_refs": ["FR-003", "FR-004", "FR-019", "FR-022", "NFR-003", "CON-002", "CON-008", "CON-011"], "spec_refs": ["SPEC §6.1", "SPEC §6.2", "SPEC §11.2", "SPEC §17.5", "SPEC §19", "SPEC §21"],
+          "depends_on": ["P0-T02"], "parallelizable": true, "parallel_group": "BASELINE-PREP", "execution_mode": "parallel", "suggested_agent_role": "model",
+          "scope": {"allowed": ["upstream manifest", "reference environment"], "avoid": ["product Lightning dependency", "algorithm rewrite"]},
+          "verification": ["Validate commit, source closure, license, config, and environment lock."], "completion_criteria": ["Reference identity is immutable and auditable."], "artifacts": ["source manifest", "environment lock"]
+        },
+        {
+          "id": "P0-T05", "title": "Capture smoke fixtures and repeated reference baseline", "status": "pending",
+          "description": "Create fast fixtures and repeated raw reference results under the pinned protocol.",
+          "prd_refs": ["FR-019", "FR-020", "FR-022", "NFR-001", "NFR-002", "NFR-012", "CON-008"], "spec_refs": ["SPEC §11.1", "SPEC §11.4", "SPEC §17.3", "SPEC §17.4"],
+          "depends_on": ["P0-T03", "P0-T04"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "benchmark",
+          "scope": {"allowed": ["fixtures", "reference results"], "avoid": ["product source", "arbitrary tolerance"]},
+          "verification": ["Link outputs to config, metrics, protocol, and environment."], "completion_criteria": ["Fixtures and repeated results are reproducible."], "artifacts": ["fixtures", "raw results", "repeat summary"]
+        },
+        {
+          "id": "P0-T06", "title": "Validate baseline readiness", "status": "pending",
+          "description": "Validate baseline completeness and mark unresolved pre-implementation decisions as blocking.",
+          "prd_refs": ["FR-022", "FR-023", "NFR-002", "NFR-011"], "spec_refs": ["SPEC §11.2", "SPEC §13.4", "SPEC §15", "SPEC §16.4", "SPEC §21"],
+          "depends_on": ["P0-T05"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "test",
+          "scope": {"allowed": ["baseline validation"], "avoid": ["implementation start"]},
+          "verification": ["Run manifest, checksum, and decision checks."], "completion_criteria": ["All P0 blockers and SC-001 are resolved."], "artifacts": ["readiness report"]
+        }
+      ]
+    },
+    {
+      "id": "P1",
+      "title": "Minimal Anomaly Foundation Ready",
+      "status": "pending",
+      "depends_on": ["P0"],
+      "exit_criteria": ["Approved batch/output/metric contract tests pass.", "MVTec mask alignment과 split manifest가 검증된다.", "Adapter/post-processing checkpoint round-trip이 새 instance에서 통과한다.", "CLI와 benchmark construction semantics가 일치한다.", "Common core/CLI에 anomaly model-name conditional이 없다."],
+      "tasks": [
+        {
+          "id": "P1-T01", "title": "Lock batch, output, and responsibility contracts with tests", "status": "pending",
+          "description": "Encode anomaly batch/output/metric boundaries using current adapter and registry conventions.",
+          "prd_refs": ["FR-002", "FR-013", "FR-015", "NFR-004", "NFR-009"], "spec_refs": ["SPEC §3.1", "SPEC §3.2", "SPEC §4"],
+          "depends_on": ["P0-T06"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "test",
+          "scope": {"allowed": ["anomaly contract", "contract tests"], "avoid": ["model algorithm", "new framework"]},
+          "verification": ["Test normal/anomalous batches and score/map conversion."], "completion_criteria": ["Metric inputs have no dataset-layout or model-name dependency."], "artifacts": ["contract tests"]
+        },
+        {
+          "id": "P1-T02", "title": "Unify component construction and validate anomaly configuration", "status": "pending",
+          "description": "Unify CLI/benchmark construction and add fail-fast validation while preserving behavior.",
+          "prd_refs": ["FR-001", "FR-002", "FR-022", "FR-023", "FR-024", "NFR-010", "NFR-011"], "spec_refs": ["SPEC §2.2", "SPEC §3.3", "SPEC §13", "SPEC §15"],
+          "depends_on": ["P1-T01"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "core",
+          "scope": {"allowed": ["core builders/config", "CLI/benchmark construction"], "avoid": ["new config system", "model branching"]},
+          "verification": ["Compare resolved components and run invalid-config tests."], "completion_criteria": ["Both entry paths share equivalent fail-fast construction."], "artifacts": ["construction path", "config tests"]
+        },
+        {
+          "id": "P1-T03", "title": "Add adapter and post-processing state to checkpoint round-trip", "status": "pending",
+          "description": "Extend checkpoint state with adapter/calibration state, global step, schema, and protocol identity.",
+          "prd_refs": ["FR-012", "FR-017", "FR-021", "FR-022", "NFR-002", "NFR-011"], "spec_refs": ["SPEC §12.3", "SPEC §14"],
+          "depends_on": ["P1-T01"], "parallelizable": true, "parallel_group": "FOUNDATION-COMPONENTS", "execution_mode": "parallel", "suggested_agent_role": "core",
+          "scope": {"allowed": ["core adapter/checkpoint", "state tests"], "avoid": ["model-state workaround", "silent load"]},
+          "verification": ["Round-trip threshold and normalization into a new adapter."], "completion_criteria": ["Evaluation-ready state is complete and versioned."], "artifacts": ["checkpoint extension", "round-trip tests"]
+        },
+        {
+          "id": "P1-T04", "title": "Harden MVTec data and split protocol", "status": "pending",
+          "description": "Validate MVTec parsing, masks, geometry, IDs, and materialized split semantics.",
+          "prd_refs": ["FR-009", "FR-014", "FR-015", "CON-009", "CON-010"], "spec_refs": ["SPEC §5.1", "SPEC §5.2", "SPEC §5.3", "SPEC §5.4"],
+          "depends_on": ["P1-T01"], "parallelizable": true, "parallel_group": "FOUNDATION-COMPONENTS", "execution_mode": "parallel", "suggested_agent_role": "dataset",
+          "scope": {"allowed": ["anomaly dataset/transform/collate", "split fixtures"], "avoid": ["model normalization in dataset", "test calibration"]},
+          "verification": ["Test zero/binary masks, geometry, disjointness, and shared-split flags."], "completion_criteria": ["MVTec semantics and split are deterministic."], "artifacts": ["MVTec fixtures", "split tests"]
+        },
+        {
+          "id": "P1-T05", "title": "Implement approved metric and post-processing semantics", "status": "pending",
+          "description": "Implement approved metrics and protocol-ordered normalization, smoothing, and thresholds.",
+          "prd_refs": ["FR-013", "FR-016", "FR-017", "NFR-007", "CON-009"], "spec_refs": ["SPEC §4.4", "SPEC §4.5", "SPEC §12", "SPEC §19"],
+          "depends_on": ["P1-T01", "P0-T05"], "parallelizable": true, "parallel_group": "FOUNDATION-COMPONENTS", "execution_mode": "parallel", "suggested_agent_role": "test",
+          "scope": {"allowed": ["anomaly metric/postprocess", "metric fixtures"], "avoid": ["unapproved dependency", "test thresholding"]},
+          "verification": ["Compare frozen metrics and serialized state."], "completion_criteria": ["Metric semantics match approved reference inputs."], "artifacts": ["metrics", "parity fixtures"]
+        },
+        {
+          "id": "P1-T06", "title": "Enforce local asset preflight and provenance recording", "status": "pending",
+          "description": "Extend offline and strict loading with manifests, checksums, consumers, and provenance.",
+          "prd_refs": ["FR-022", "FR-023", "NFR-006", "NFR-011", "CON-006", "CON-007"], "spec_refs": ["SPEC §6.4", "SPEC §13.3", "SPEC §13.4", "SPEC §15", "SPEC §16"],
+          "depends_on": ["P0-T03", "P1-T02"], "parallelizable": true, "parallel_group": "FOUNDATION-COMPONENTS", "execution_mode": "parallel", "suggested_agent_role": "core",
+          "scope": {"allowed": ["offline/errors", "asset validation"], "avoid": ["downloads", "random fallback"]},
+          "verification": ["Run missing/mismatched asset tests with network blocked."], "completion_criteria": ["Required assets fail actionably before execution."], "artifacts": ["asset preflight", "provenance"]
+        },
+        {
+          "id": "P1-T07", "title": "Integrate and gate the minimal foundation", "status": "pending",
+          "description": "Validate dataset-to-checkpoint-to-prediction with a fixture model and focused regressions.",
+          "prd_refs": ["FR-010", "FR-011", "FR-012", "FR-013", "FR-021", "NFR-007", "NFR-013"], "spec_refs": ["SPEC §9", "SPEC §10", "SPEC §14.5", "SPEC §17.1", "SPEC §17.2"],
+          "depends_on": ["P1-T02", "P1-T03", "P1-T04", "P1-T05", "P1-T06"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "test",
+          "scope": {"allowed": ["foundation integration", "focused regression"], "avoid": ["STFPM", "aux/no-gradient abstraction"]},
+          "verification": ["Run integration, state, offline fixture, and regression tests."], "completion_criteria": ["P1 gates pass without model-name branches."], "artifacts": ["foundation gate"]
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "title": "STFPM Vertical Slice Accepted",
+      "status": "pending",
+      "depends_on": ["P1"],
+      "exit_criteria": ["STFPM 공통 command matrix가 offline smoke에서 완료된다.", "Upstream source/diff/license가 추적된다.", "Student-only optimization과 reference transform이 resolved record에서 확인된다.", "New-process checkpoint round-trip과 calibrated prediction이 통과한다.", "Common engine에 STFPM 이름 분기가 없다."],
+      "tasks": [
+        {
+          "id": "P2-T01", "title": "Import and audit pinned STFPM pure-PyTorch source", "status": "pending",
+          "description": "Import pinned STFPM source with minimal adaptation and record checksums, license, imports, and diff.",
+          "prd_refs": ["FR-003", "FR-004", "NFR-003", "CON-004", "CON-008", "CON-011"], "spec_refs": ["SPEC §6.1", "SPEC §6.2", "SPEC §17.5", "SPEC §18"],
+          "depends_on": ["P1-T07", "P0-T04"], "parallelizable": true, "parallel_group": "STFPM-SLICE", "execution_mode": "parallel", "suggested_agent_role": "model",
+          "scope": {"allowed": ["STFPM source/parity", "source manifest"], "avoid": ["core changes", "algorithm rewrite"]},
+          "verification": ["Run source audit and pure parity fixtures."], "completion_criteria": ["Algorithm changes are minimal and approved."], "artifacts": ["STFPM source", "diff", "parity tests"]
+        },
+        {
+          "id": "P2-T02", "title": "Implement STFPM integration and reference protocol", "status": "pending",
+          "description": "Connect teacher/student outputs, loss, student-only optimization, scheduler, and transforms through the contract.",
+          "prd_refs": ["FR-005", "FR-006", "FR-007", "FR-013", "FR-017", "FR-024"], "spec_refs": ["SPEC §6.3", "SPEC §6.7", "SPEC §7.2", "SPEC §7.3", "SPEC §8"],
+          "depends_on": ["P1-T07", "P2-T01"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "model",
+          "scope": {"allowed": ["STFPM adapter/config/tests"], "avoid": ["core redesign", "other models"]},
+          "verification": ["Test frozen teacher, parameters, optimizer, loss, map, and protocol."], "completion_criteria": ["STFPM follows the approved protocol."], "artifacts": ["STFPM integration", "config"]
+        },
+        {
+          "id": "P2-T03", "title": "Complete STFPM train and selection flow", "status": "pending",
+          "description": "Run training and validation selection with explicit leakage instrumentation.",
+          "prd_refs": ["FR-001", "FR-009", "FR-010", "CON-009", "CON-010"], "spec_refs": ["SPEC §7.4", "SPEC §8", "SPEC §9.1"],
+          "depends_on": ["P2-T02"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "model",
+          "scope": {"allowed": ["STFPM train/selection tests"], "avoid": ["test selection", "protocol mutation"]},
+          "verification": ["Run training smoke, selection, metrics, and split-access checks."], "completion_criteria": ["Selection is reproducible and leakage-safe."], "artifacts": ["training result"]
+        },
+        {
+          "id": "P2-T04", "title": "Verify STFPM checkpoint, evaluate, and predict round-trip", "status": "pending",
+          "description": "Restore STFPM in a new process and compare evaluation, prediction, and calibration state.",
+          "prd_refs": ["FR-010", "FR-011", "FR-012", "FR-017", "FR-021", "FR-023"], "spec_refs": ["SPEC §9", "SPEC §10", "SPEC §12.3", "SPEC §14"],
+          "depends_on": ["P2-T03"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "test",
+          "scope": {"allowed": ["STFPM state/eval/predict tests"], "avoid": ["test recalibration", "fallback"]},
+          "verification": ["Compare scores, maps, thresholds, and visualization inputs."], "completion_criteria": ["New-process outputs reproduce trained state."], "artifacts": ["round-trip evidence"]
+        },
+        {
+          "id": "P2-T05", "title": "Run STFPM per-model acceptance and minimal reference comparison", "status": "pending",
+          "description": "Run STFPM command smoke and frozen reference comparison with diagnostics and provenance.",
+          "prd_refs": ["FR-018", "FR-019", "FR-020", "FR-022", "NFR-001", "NFR-002", "NFR-008"], "spec_refs": ["SPEC §11", "SPEC §17.3", "SPEC §17.4"],
+          "depends_on": ["P2-T04"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "benchmark",
+          "scope": {"allowed": ["STFPM acceptance"], "avoid": ["cross-model gate", "tuning"]},
+          "verification": ["Validate commands, metrics, diff, environment, and provenance."], "completion_criteria": ["Vertical slice evidence is complete."], "artifacts": ["STFPM acceptance"]
+        },
+        {
+          "id": "P2-T06", "title": "Review abstraction after the first vertical slice", "status": "pending",
+          "description": "Remove accidental STFPM responsibility from core before lifecycle generalization.",
+          "prd_refs": ["FR-024", "NFR-004", "NFR-005", "NFR-010", "CON-005"], "spec_refs": ["SPEC §3.2", "SPEC §3.3", "SPEC §6.3", "SPEC §7.1", "SPEC §17.5"],
+          "depends_on": ["P2-T05"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "core",
+          "scope": {"allowed": ["architecture review", "purity tests"], "avoid": ["speculative abstraction", "new models"]},
+          "verification": ["Run purity and responsibility reviews."], "completion_criteria": ["No model branch or duplicated framework remains."], "artifacts": ["architecture review"]
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "title": "Heterogeneous Lifecycle Contract Stabilized",
+      "status": "pending",
+      "depends_on": ["P2"],
+      "exit_criteria": ["Optimizer-none와 auxiliary lifecycle이 generic API로 실행된다.", "Validation preparation과 finalize hook order가 테스트로 고정된다.", "모든 lifecycle state가 checkpoint round-trip된다.", "Generic engine/CLI에 EfficientAD, PatchCore 또는 anomaly model-name 분기가 없다.", "P4 allowed/avoid scope와 shared-change escalation rule이 승인된다."],
+      "tasks": [
+        {
+          "id": "P3-T01", "title": "Add adapter-owned optimization specification and cadence", "status": "pending",
+          "description": "Add trainable groups, optional optimizer/scheduler, cadence, and clipping through generic boundaries.",
+          "prd_refs": ["FR-005", "FR-006", "FR-024", "NFR-004", "NFR-005"], "spec_refs": ["SPEC §3.3", "SPEC §6.7", "SPEC §7.3", "SPEC §8.1"],
+          "depends_on": ["P2-T06"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "core",
+          "scope": {"allowed": ["core adapter/engine/builders", "optimization tests"], "avoid": ["model branches", "callback framework"]},
+          "verification": ["Test optimizer-present/none, parameters, and cadence."], "completion_criteria": ["Optimization differences need no model-specific core logic."], "artifacts": ["optimization contract"]
+        },
+        {
+          "id": "P3-T02", "title": "Add validation preparation and finalize hook ordering", "status": "pending",
+          "description": "Add validation and finalize hook order with split-access protection.",
+          "prd_refs": ["FR-005", "FR-009", "FR-012", "CON-009"], "spec_refs": ["SPEC §3.3", "SPEC §7.4", "SPEC §8.2", "SPEC §9.1"],
+          "depends_on": ["P3-T01"], "parallelizable": true, "parallel_group": "LIFECYCLE-CORE", "execution_mode": "parallel", "suggested_agent_role": "core",
+          "scope": {"allowed": ["adapter hooks", "hook tests"], "avoid": ["model callbacks", "test calibration"]},
+          "verification": ["Compare hook trace and split access."], "completion_criteria": ["Ordering is deterministic and leakage-safe."], "artifacts": ["lifecycle hooks"]
+        },
+        {
+          "id": "P3-T03", "title": "Add named auxiliary loader construction and consumption", "status": "pending",
+          "description": "Build named auxiliary loaders through existing registries and expose them via loader mapping.",
+          "prd_refs": ["FR-008", "FR-023", "NFR-006", "CON-006"], "spec_refs": ["SPEC §3.3", "SPEC §5.5", "SPEC §7.2", "SPEC §8.1", "SPEC §13.2"],
+          "depends_on": ["P3-T01"], "parallelizable": true, "parallel_group": "LIFECYCLE-CORE", "execution_mode": "parallel", "suggested_agent_role": "dataset",
+          "scope": {"allowed": ["core builders/config", "aux tests"], "avoid": ["EfficientAD branch", "download"]},
+          "verification": ["Test missing names, restart/exhaustion, and offline assets."], "completion_criteria": ["Only declared auxiliary loaders are consumed."], "artifacts": ["auxiliary loaders"]
+        },
+        {
+          "id": "P3-T04", "title": "Complete heterogeneous lifecycle checkpoint state", "status": "pending",
+          "description": "Round-trip readiness, memory/statistics, normalization, global step, and required progress.",
+          "prd_refs": ["FR-012", "FR-021", "FR-022", "NFR-002", "NFR-011"], "spec_refs": ["SPEC §6.8", "SPEC §7.5", "SPEC §8.3", "SPEC §14"],
+          "depends_on": ["P3-T02", "P3-T03"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "core",
+          "scope": {"allowed": ["checkpoint/state contract", "round-trip tests"], "avoid": ["model checkpoint format"]},
+          "verification": ["Round-trip gradient, auxiliary, and finalize test doubles."], "completion_criteria": ["Supported lifecycles restore explicit state."], "artifacts": ["lifecycle state tests"]
+        },
+        {
+          "id": "P3-T05", "title": "Validate lifecycle capabilities without model-name branches", "status": "pending",
+          "description": "Exercise lifecycle test doubles and run purity plus existing-task regression.",
+          "prd_refs": ["FR-005", "FR-024", "NFR-004", "NFR-005", "NFR-007", "NFR-013", "CON-005"], "spec_refs": ["SPEC §7.1", "SPEC §17.1", "SPEC §17.2", "SPEC §17.5"],
+          "depends_on": ["P3-T04"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "test",
+          "scope": {"allowed": ["lifecycle tests", "purity/regression"], "avoid": ["production model"]},
+          "verification": ["Run lifecycle, purity, and regression suites."], "completion_criteria": ["Capabilities work without named branches."], "artifacts": ["lifecycle gate"]
+        },
+        {
+          "id": "P3-T06", "title": "Freeze model-wave contract and merge gate", "status": "pending",
+          "description": "Freeze model-agent scope and shared-capability escalation rules.",
+          "prd_refs": ["FR-024", "NFR-005", "NFR-010", "CON-005"], "spec_refs": ["SPEC §3.1", "SPEC §3.3", "SPEC §6.3", "SPEC §7.1", "SPEC §18"],
+          "depends_on": ["P3-T05"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "core",
+          "scope": {"allowed": ["workstream contract", "merge gate"], "avoid": ["model code"]},
+          "verification": ["Review allowed/avoid paths and escalation."], "completion_criteria": ["Agents cannot independently redesign core."], "artifacts": ["model-wave contract"]
+        }
+      ]
+    },
+    {
+      "id": "P4",
+      "title": "Model Lifecycle Wave 1 Accepted",
+      "status": "pending",
+      "depends_on": ["P3"],
+      "exit_criteria": ["EfficientAD와 PatchCore workstream의 model-specific tests와 command matrix가 통과한다.", "각 모델의 state가 새 process checkpoint round-trip에서 복원된다.", "각 모델의 upstream source/diff/license와 asset provenance가 완전하다.", "Shared core change는 P4-T03을 거쳤으며 model agent의 독자 core redesign이 없다.", "STFPM 포함 세 lifecycle의 common workflow가 유지된다."],
+      "tasks": [
+        {
+          "id": "P4-T01", "title": "Integrate EfficientAD on the established contract", "status": "pending",
+          "description": "Integrate pinned EfficientAD source, auxiliary/statistics/quantile/cadence lifecycle, config, and state.",
+          "prd_refs": ["FR-003", "FR-004", "FR-005", "FR-006", "FR-007", "FR-008", "FR-010", "FR-011", "FR-012", "FR-013", "FR-017", "FR-021", "FR-022", "FR-023", "FR-024"], "spec_refs": ["SPEC §5.4", "SPEC §5.5", "SPEC §6", "SPEC §7", "SPEC §8", "SPEC §9", "SPEC §10", "SPEC §14", "SPEC §18"],
+          "depends_on": ["P3-T06"], "parallelizable": true, "parallel_group": "MODEL-WAVE-1", "execution_mode": "parallel", "suggested_agent_role": "model",
+          "scope": {"allowed": ["EfficientAD source/adapter/config/tests"], "avoid": ["core redesign", "common contract/schema", "other models"]},
+          "verification": ["Run parity, auxiliary, transform, state, offline command, and reference tests."], "completion_criteria": ["Acceptance passes or blocks on P4-T03."], "artifacts": ["EfficientAD integration", "acceptance"]
+        },
+        {
+          "id": "P4-T02", "title": "Integrate PatchCore on the established contract", "status": "pending",
+          "description": "Integrate pinned PatchCore source, optimizer-none collection/finalize, memory state, config, and outputs.",
+          "prd_refs": ["FR-003", "FR-004", "FR-005", "FR-006", "FR-010", "FR-011", "FR-012", "FR-013", "FR-017", "FR-021", "FR-022", "FR-023", "FR-024"], "spec_refs": ["SPEC §6", "SPEC §7", "SPEC §8", "SPEC §9", "SPEC §10", "SPEC §14", "SPEC §18"],
+          "depends_on": ["P3-T06"], "parallelizable": true, "parallel_group": "MODEL-WAVE-1", "execution_mode": "parallel", "suggested_agent_role": "model",
+          "scope": {"allowed": ["PatchCore source/adapter/config/tests"], "avoid": ["core redesign", "common contract/schema", "other models"]},
+          "verification": ["Run parity, finalize, memory state, offline command, and reference tests."], "completion_criteria": ["Acceptance passes or blocks on P4-T03."], "artifacts": ["PatchCore integration", "acceptance"]
+        },
+        {
+          "id": "P4-T03", "title": "Adjudicate shared contract change requests", "status": "pending",
+          "description": "Resolve demonstrated shared gaps centrally or record no request.",
+          "prd_refs": ["FR-024", "NFR-004", "NFR-005", "NFR-010", "NFR-013", "CON-005"], "spec_refs": ["SPEC §3.3", "SPEC §7.1", "SPEC §17.2", "SPEC §17.5"],
+          "depends_on": ["P3-T06"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "core",
+          "scope": {"allowed": ["approved shared change", "regression"], "avoid": ["private core changes", "single-model abstraction"]},
+          "verification": ["Require evidence and run purity/full regression."], "completion_criteria": ["Requests are centrally resolved or no-request is recorded."], "artifacts": ["shared-change decisions"]
+        },
+        {
+          "id": "P4-T04", "title": "Run per-model acceptance matrix", "status": "pending",
+          "description": "Apply one acceptance checklist to STFPM, EfficientAD, and PatchCore.",
+          "prd_refs": ["FR-001", "FR-010", "FR-011", "FR-012", "FR-013", "FR-014", "FR-015", "FR-016", "FR-017", "FR-018", "FR-019", "FR-020", "FR-021", "FR-022", "FR-023", "NFR-001", "NFR-002", "NFR-006", "NFR-007", "NFR-008", "NFR-011"], "spec_refs": ["SPEC §9", "SPEC §10", "SPEC §11", "SPEC §12", "SPEC §13", "SPEC §14", "SPEC §15", "SPEC §16", "SPEC §17"],
+          "depends_on": ["P4-T01", "P4-T02", "P4-T03"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "test",
+          "scope": {"allowed": ["cross-model acceptance"], "avoid": ["new features", "tuning"]},
+          "verification": ["Run smoke, round-trip, asset, reference, and provenance checks."], "completion_criteria": ["Each model has complete acceptance evidence."], "artifacts": ["acceptance matrix"]
+        },
+        {
+          "id": "P4-T05", "title": "Freeze model integration wave", "status": "pending",
+          "description": "Audit extension cost, fidelity, licenses, and absence of duplicated framework code.",
+          "prd_refs": ["FR-003", "FR-004", "FR-024", "NFR-003", "NFR-004", "NFR-005", "NFR-010", "CON-004", "CON-005", "CON-011"], "spec_refs": ["SPEC §6.1", "SPEC §6.2", "SPEC §6.3", "SPEC §17.5", "SPEC §18"],
+          "depends_on": ["P4-T04"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "core",
+          "scope": {"allowed": ["source/architecture audit"], "avoid": ["new model"]},
+          "verification": ["Run source, purity, duplicate, license, and scope audits."], "completion_criteria": ["Wave is merge-ready and boundaries are preserved."], "artifacts": ["wave audit"]
+        }
+      ]
+    },
+    {
+      "id": "P5",
+      "title": "Cross-Model Reference Equivalence Proven",
+      "status": "pending",
+      "depends_on": ["P4"],
+      "exit_criteria": ["각 승인 모델의 reference comparison이 tolerance를 통과하거나 승인 가능한 protocol diagnosis를 남긴다.", "Tolerance가 acceptance run 전에 반복 evidence로 고정된다.", "Split 공유/leakage 상태가 결과에 명시된다.", "한 실행 실패가 다른 결과를 삭제하거나 성공으로 오인시키지 않는다.", "Fast CI profile과 long reference profile이 분리된다."],
+      "tasks": [
+        {
+          "id": "P5-T01", "title": "Implement reference manifest and protocol diff validation", "status": "pending",
+          "description": "Record and compare source, config, data, split, transforms, optimization, assets, postprocess, metrics, and environment.",
+          "prd_refs": ["FR-018", "FR-019", "FR-020", "FR-022", "NFR-002", "NFR-008"], "spec_refs": ["SPEC §11.2", "SPEC §11.3", "SPEC §13.4"],
+          "depends_on": ["P4-T05"], "parallelizable": true, "parallel_group": "BENCH-PREP", "execution_mode": "parallel", "suggested_agent_role": "benchmark",
+          "scope": {"allowed": ["manifest/diff", "benchmark tests"], "avoid": ["model algorithm"]},
+          "verification": ["Inject mismatches and verify exact diffs."], "completion_criteria": ["Protocol differences are actionable."], "artifacts": ["manifest", "diff"]
+        },
+        {
+          "id": "P5-T02", "title": "Harden benchmark isolation and result completeness", "status": "pending",
+          "description": "Preserve independent results and diagnostics when one run fails.",
+          "prd_refs": ["FR-018", "FR-025", "NFR-008", "AC-020"], "spec_refs": ["SPEC §11.5", "SPEC §15.2"],
+          "depends_on": ["P4-T05"], "parallelizable": true, "parallel_group": "BENCH-PREP", "execution_mode": "parallel", "suggested_agent_role": "benchmark",
+          "scope": {"allowed": ["bench runner/control/leaderboard", "failure tests"], "avoid": ["swallowed failures", "models"]},
+          "verification": ["Inject failure and inspect rows, diagnostics, and leaderboard."], "completion_criteria": ["Failure cannot erase or mislabel other results."], "artifacts": ["failure tests"]
+        },
+        {
+          "id": "P5-T03", "title": "Approve empirical tolerance and reproducibility envelope", "status": "pending",
+          "description": "Approve tolerances and repeats from pinned evidence before acceptance.",
+          "prd_refs": ["FR-019", "NFR-001", "NFR-002", "NFR-012", "CON-008"], "spec_refs": ["SPEC §11.4", "SPEC §17.4", "SPEC §21"],
+          "depends_on": ["P5-T01", "P0-T05"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "benchmark",
+          "scope": {"allowed": ["repeat analysis", "tolerance record"], "avoid": ["post-hoc widening", "bitwise criterion"]},
+          "verification": ["Link repeats, statistics, environment, and envelope."], "completion_criteria": ["Tolerance is frozen before P5-T04."], "artifacts": ["tolerance record"]
+        },
+        {
+          "id": "P5-T04", "title": "Run per-model long reference acceptance", "status": "pending",
+          "description": "Run pinned reference/integration protocols for each model and diagnose misses.",
+          "prd_refs": ["FR-019", "FR-020", "NFR-001", "NFR-002", "NFR-012", "AC-008", "AC-009", "AC-014"], "spec_refs": ["SPEC §11.4", "SPEC §17.4"],
+          "depends_on": ["P5-T02", "P5-T03"], "parallelizable": true, "parallel_group": "REFERENCE-RUNS", "execution_mode": "parallel", "suggested_agent_role": "benchmark",
+          "scope": {"allowed": ["approved long runs", "diagnosis"], "avoid": ["tuning", "protocol mutation"]},
+          "verification": ["Evaluate against pre-approved tolerance."], "completion_criteria": ["Each model passes or has an explicit blocker."], "artifacts": ["long results"]
+        },
+        {
+          "id": "P5-T05", "title": "Validate cross-model controlled benchmark", "status": "pending",
+          "description": "Produce controlled results while preserving model-specific reference protocols.",
+          "prd_refs": ["FR-018", "FR-019", "FR-020", "FR-025", "NFR-008"], "spec_refs": ["SPEC §11.1", "SPEC §11.2", "SPEC §11.3", "SPEC §11.4", "SPEC §11.5"],
+          "depends_on": ["P5-T04"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "benchmark",
+          "scope": {"allowed": ["cross-model results"], "avoid": ["forced hyperparameters", "hidden failures"]},
+          "verification": ["Validate results, summary, protocol links, profiles, and isolation."], "completion_criteria": ["Benchmark is reproducible and diagnosable."], "artifacts": ["benchmark report"]
+        }
+      ]
+    },
+    {
+      "id": "P6",
+      "title": "Offline, Regression, and Release Evidence Complete",
+      "status": "pending",
+      "depends_on": ["P5"],
+      "exit_criteria": ["Offline full lifecycle and missing-asset failure matrix pass.", "Existing Classification/Segmentation/Detection and benchmark regression pass.", "Product runtime has no Lightning/anomalib Engine dependency or implicit download.", "Upstream source/diff/license and minimal dependency audit pass.", "Every in-scope acceptance criterion links to evidence; unresolved items are explicit blockers, not silent omissions."],
+      "tasks": [
+        {
+          "id": "P6-T01", "title": "Run network-blocked lifecycle and asset failure matrix", "status": "pending",
+          "description": "Run all model commands locally and verify missing/incompatible asset failures.",
+          "prd_refs": ["FR-023", "NFR-006", "NFR-011", "CON-006", "CON-007", "AC-011", "AC-012"], "spec_refs": ["SPEC §15", "SPEC §16", "SPEC §17.2"],
+          "depends_on": ["P5-T05"], "parallelizable": true, "parallel_group": "FINAL-VALIDATION", "execution_mode": "parallel", "suggested_agent_role": "test",
+          "scope": {"allowed": ["offline and negative tests"], "avoid": ["network", "download", "fallback"]},
+          "verification": ["Monitor network and run asset matrix."], "completion_criteria": ["Local lifecycle succeeds and failures are actionable."], "artifacts": ["offline report"]
+        },
+        {
+          "id": "P6-T02", "title": "Run full existing-task and benchmark regression", "status": "pending",
+          "description": "Run Classification, Segmentation, Detection, anomaly, toy, and benchmark suites.",
+          "prd_refs": ["NFR-004", "NFR-005", "NFR-013", "AC-018"], "spec_refs": ["SPEC §17.2"],
+          "depends_on": ["P5-T05"], "parallelizable": true, "parallel_group": "FINAL-VALIDATION", "execution_mode": "parallel", "suggested_agent_role": "test",
+          "scope": {"allowed": ["regression execution", "in-scope fixes"], "avoid": ["unrelated features"]},
+          "verification": ["Run full regression."], "completion_criteria": ["Tests pass or pre-existing failures are evidenced."], "artifacts": ["regression report"]
+        },
+        {
+          "id": "P6-T03", "title": "Audit runtime purity, dependencies, source, and licenses", "status": "pending",
+          "description": "Scan forbidden imports/downloads/branches, source diffs, notices, and dependencies.",
+          "prd_refs": ["NFR-003", "NFR-004", "NFR-014", "CON-001", "CON-002", "CON-004", "CON-005", "CON-011", "AC-002", "AC-003", "AC-017"], "spec_refs": ["SPEC §16.3", "SPEC §17.5", "SPEC §19"],
+          "depends_on": ["P5-T05"], "parallelizable": true, "parallel_group": "FINAL-VALIDATION", "execution_mode": "parallel", "suggested_agent_role": "test",
+          "scope": {"allowed": ["static/dependency/source/license audits"], "avoid": ["new framework dependency"]},
+          "verification": ["Run import, download, branch, checksum, notice, and dependency scans."], "completion_criteria": ["Runtime and source satisfy purity and attribution."], "artifacts": ["audit reports"]
+        },
+        {
+          "id": "P6-T04", "title": "Assemble final acceptance and reproducibility evidence", "status": "pending",
+          "description": "Index model, integration, data, metric, reference, protocol, asset, and environment evidence.",
+          "prd_refs": ["FR-022", "NFR-002", "NFR-007", "NFR-008", "AC-013", "AC-019"], "spec_refs": ["SPEC §11.2", "SPEC §13.4", "SPEC §17", "SPEC §22"],
+          "depends_on": ["P6-T01", "P6-T02", "P6-T03"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "docs",
+          "scope": {"allowed": ["evidence index", "protocol docs"], "avoid": ["new architecture", "new feature"]},
+          "verification": ["Map every acceptance criterion to evidence."], "completion_criteria": ["No criterion lacks evidence or explicit blocker."], "artifacts": ["evidence index"]
+        },
+        {
+          "id": "P6-T05", "title": "Release gate review", "status": "pending",
+          "description": "Review hierarchy, exits, non-goals, and limitations for a complete or blocked decision.",
+          "prd_refs": ["CON-012", "OOS-001", "OOS-002", "OOS-003", "OOS-004", "OOS-005", "OOS-006", "OOS-007", "OOS-008", "OOS-009", "OOS-010", "OOS-011"], "spec_refs": ["SPEC §1.4", "SPEC §18", "SPEC §21", "SPEC §22"],
+          "depends_on": ["P6-T04"], "parallelizable": false, "parallel_group": null, "execution_mode": "sequential", "suggested_agent_role": "docs",
+          "scope": {"allowed": ["release/non-goal audit"], "avoid": ["silent waiver", "scope expansion"]},
+          "verification": ["Audit coverage, non-goals, and phase exits."], "completion_criteria": ["Release is complete or explicitly blocked."], "artifacts": ["release decision"]
+        }
+      ]
+    }
+  ]
+}

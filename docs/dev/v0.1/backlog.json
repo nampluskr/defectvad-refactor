@@ -1,0 +1,1290 @@
+{
+  "schema_version": "1.0",
+  "version": "v0.1",
+  "created": "2026-08-20",
+  "scope": "STFPM, EfficientAD, MVTec AD — cv_boilerplate@65d5412 위의 anomaly detection 통합",
+  "remote_repository": "https://github.com/nampluskr/defectvad-refactor",
+  "source_documents": {
+    "brief": "BRIEF.md",
+    "prd": "PRD.md",
+    "spec": "SPEC.md",
+    "plan": "PLAN.md"
+  },
+  "status_values": [
+    "pending",
+    "ready",
+    "in_progress",
+    "blocked",
+    "verification",
+    "done"
+  ],
+  "global_constraints": [
+    {
+      "id": "CON-001",
+      "rule": "upstream/ 에 복사한 모델 코드는 import 경로 외 수정 금지"
+    },
+    {
+      "id": "CON-002",
+      "rule": "Lightning을 의존성 추가·import·호출하지 않는다"
+    },
+    {
+      "id": "CON-003",
+      "rule": "데이터셋은 /mnt/d/datasets, 가중치는 /mnt/d/backbones 에서 읽는다"
+    },
+    {
+      "id": "CON-004",
+      "rule": "에이전트는 데이터셋·모델·라이브러리를 자동 다운로드·설치하지 않는다"
+    },
+    {
+      "id": "CON-005",
+      "rule": "대상은 image 모델로 한정한다"
+    },
+    {
+      "id": "NFR-005",
+      "rule": "공통 engine에 모델명·task명 기반 분기를 두지 않는다"
+    },
+    {
+      "id": "PRD-§5",
+      "rule": "에이전트는 학습·평가를 임의로 장시간 실행하지 않는다. 실행 주체는 사용자다"
+    }
+  ],
+  "phases": [
+    {
+      "id": "P0",
+      "title": "기준 확정",
+      "status": "ready",
+      "depends_on": [],
+      "exit_criteria": [
+        "대상 anomalib commit이 고정된다.",
+        "upstream/ 에 복사할 파일 목록이 실제 import 추적으로 확정된다.",
+        "로컬 자산 4종의 존재가 확인되거나 누락이 사용자에게 보고된다.",
+        "reference 성능 기준값이 문서화되어 있다 (PRD §5.2).",
+        "SPEC §4.4/§4.5의 하이퍼파라미터가 lightning_model.py 원본과 대조된다."
+      ],
+      "tasks": [
+        {
+          "id": "P0-T01",
+          "title": "로컬 자산 존재 확인",
+          "status": "ready",
+          "description": "MVTec AD, ImageNette, ResNet18 backbone, EfficientAD pretrained teacher가 지정 경로에 있는지 확인한다. 없으면 무엇이 어느 경로에 필요한지 사용자에게 알리고 대기한다.",
+          "prd_refs": [
+            "FR-008",
+            "NFR-006",
+            "CON-003",
+            "CON-004"
+          ],
+          "spec_refs": [
+            "SPEC §4.4",
+            "SPEC §4.5"
+          ],
+          "depends_on": [],
+          "parallelizable": true,
+          "parallel_group": "P0-PREP",
+          "execution_mode": "parallel",
+          "suggested_agent_role": "test",
+          "scope": {
+            "allowed": [
+              "경로 존재 및 구조 확인",
+              "누락 자산 목록 작성"
+            ],
+            "avoid": [
+              "자산 다운로드 (CON-004)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "4개 경로 각각의 존재 여부와 실제 디렉터리 구조를 기록한다.",
+            "EfficientAD teacher는 pretrained_teacher_small.pth 파일까지 확인한다."
+          ],
+          "completion_criteria": [
+            "모든 자산이 확인되거나, 누락 목록이 사용자에게 전달되고 해당 작업이 대기 상태로 전환된다."
+          ],
+          "artifacts": [
+            "자산 인벤토리"
+          ]
+        },
+        {
+          "id": "P0-T02",
+          "title": "anomalib 소스 확보 상태 확인 및 commit 고정",
+          "status": "ready",
+          "description": "anomalib 소스가 로컬에 있는지 확인하고, 있으면 대상 commit을 고정한다. 없으면 CON-004에 따라 사용자에게 요청하고 대기한다. 이 작업이 막히면 P0 이후 전체가 차단된다.",
+          "prd_refs": [
+            "FR-001",
+            "CON-004"
+          ],
+          "spec_refs": [
+            "SPEC §2",
+            "SPEC §6"
+          ],
+          "depends_on": [],
+          "parallelizable": true,
+          "parallel_group": "P0-PREP",
+          "execution_mode": "parallel",
+          "suggested_agent_role": "model",
+          "scope": {
+            "allowed": [
+              "로컬 anomalib 소스 탐색",
+              "commit hash 및 라이선스 기록"
+            ],
+            "avoid": [
+              "anomalib clone·pip install (CON-004)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "고정한 commit hash와 라이선스를 기록한다."
+          ],
+          "completion_criteria": [
+            "대상 commit이 고정되거나, 소스 부재가 사용자에게 보고되고 P0-T03이 차단된다."
+          ],
+          "artifacts": [
+            "anomalib commit hash",
+            "라이선스 기록"
+          ]
+        },
+        {
+          "id": "P0-T03",
+          "title": "복사 대상 파일 목록 확정",
+          "status": "pending",
+          "description": "STFPM과 EfficientAD의 순수 PyTorch 파일 및 이들이 의존하는 anomalib components를 실제 import 추적으로 확정한다. BRIEF의 예상 파일 구성이 실제와 일치하는지 대조한다.",
+          "prd_refs": [
+            "FR-001",
+            "CON-001",
+            "CON-005"
+          ],
+          "spec_refs": [
+            "SPEC §3",
+            "SPEC §6"
+          ],
+          "depends_on": [
+            "P0-T02"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "model",
+          "scope": {
+            "allowed": [
+              "import 추적",
+              "파일 목록 작성",
+              "BRIEF 예상과의 차이 기록"
+            ],
+            "avoid": [
+              "이 단계에서의 파일 복사",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "STFPM·EfficientAD 각각의 transitive import를 추적해 components 목록을 만든다.",
+            "BRIEF §모델 추가 예시의 예상 파일 구성과 실제를 대조하고 차이를 기록한다."
+          ],
+          "completion_criteria": [
+            "upstream/ 에 복사할 파일이 경로 단위로 열거되고, components 목록이 확정된다."
+          ],
+          "artifacts": [
+            "복사 대상 파일 목록"
+          ]
+        },
+        {
+          "id": "P0-T04",
+          "title": "lightning_model.py 정독 및 SPEC 하이퍼파라미터 대조",
+          "status": "pending",
+          "description": "두 모델의 lightning_model.py를 읽고 SPEC §4.4/§4.5 표의 optimizer·scheduler·hook 매핑이 원본과 일치하는지 대조한다. 특히 EfficientAD 분위수 계산이 어떤 데이터를 보는지 확인한다.",
+          "prd_refs": [
+            "FR-002",
+            "FR-009",
+            "FR-010",
+            "FR-011",
+            "CON-002"
+          ],
+          "spec_refs": [
+            "SPEC §4.4",
+            "SPEC §4.5"
+          ],
+          "depends_on": [
+            "P0-T02"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "model",
+          "scope": {
+            "allowed": [
+              "lightning_model.py 읽기",
+              "SPEC 표와의 차이 기록"
+            ],
+            "avoid": [
+              "lightning_model.py 복사 (CON-002)",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "SGD/Adam 하이퍼파라미터, StepLR 시점, batch size 1 제약이 원본과 일치하는지 확인한다.",
+            "on_validation_start의 분위수 계산이 어떤 loader를 쓰는지 확인하고 SPEC §4.3의 on_fit_end(valid) 매핑이 타당한지 판정한다."
+          ],
+          "completion_criteria": [
+            "SPEC §4.4/§4.5와 원본의 차이가 없거나, 차이가 기록되고 SPEC 갱신이 요청된다."
+          ],
+          "artifacts": [
+            "hook 매핑 대조표"
+          ]
+        },
+        {
+          "id": "P0-T05",
+          "title": "P0 완료 판정",
+          "status": "pending",
+          "description": "복사 대상 파일 목록과 reference 성능 기준값이 문서화되었는지 확인하고 P1 진입 가능 여부를 판정한다.",
+          "prd_refs": [
+            "NFR-002"
+          ],
+          "spec_refs": [
+            "SPEC §6"
+          ],
+          "depends_on": [
+            "P0-T01",
+            "P0-T03",
+            "P0-T04"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "test",
+          "scope": {
+            "allowed": [
+              "산출물 점검",
+              "미결정 항목 갱신"
+            ],
+            "avoid": [
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "PLAN §3의 P0 완료 조건 두 가지를 각각 확인한다.",
+            "SPEC §6 미결정 표에서 P0 항목이 해소되었는지 확인한다."
+          ],
+          "completion_criteria": [
+            "P0 완료 조건이 충족되고 P1이 ready로 전환된다."
+          ],
+          "artifacts": [
+            "P0 완료 기록"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P1",
+      "title": "공통 구조 설계",
+      "status": "pending",
+      "depends_on": [
+        "P0"
+      ],
+      "exit_criteria": [
+        "upstream/ 원본이 import 경로 외 수정 없이 배치된다.",
+        "기존 stfpm.py·efficientad.py가 제거되고 custom_ae 경로가 유지된다.",
+        "MVTec 로딩과 AUROC 산출이 독립적으로 검증된다.",
+        "데이터셋 인터페이스가 MVTec 구조에 결합되지 않는다.",
+        "core/adapter.py 변경 필요 여부가 결정된다."
+      ],
+      "tasks": [
+        {
+          "id": "P1-T01",
+          "title": "upstream/ 디렉터리 생성 및 원본 복사",
+          "status": "pending",
+          "description": "P0-T03에서 확정한 파일을 upstream/ 에 수정 없이 복사한다. import 경로만 이 프로젝트 구조에 맞게 조정한다(원칙 1의 유일한 예외).",
+          "prd_refs": [
+            "FR-001",
+            "CON-001"
+          ],
+          "spec_refs": [
+            "SPEC §3"
+          ],
+          "depends_on": [
+            "P0-T05"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "model",
+          "scope": {
+            "allowed": [
+              "파일 복사",
+              "import 경로 조정만"
+            ],
+            "avoid": [
+              "네트워크 구조·연산·기본값·시그니처·반환 형식 변경 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "복사본과 원본을 diff해 import 문 외 차이가 없음을 확인한다 (AC-001).",
+            "upstream/ 하위에 lightning 관련 import가 없음을 확인한다 (AC-002)."
+          ],
+          "completion_criteria": [
+            "upstream/stfpm/, upstream/efficient_ad/, upstream/components/ 가 원본과 import 경로만 다르다."
+          ],
+          "artifacts": [
+            "upstream/ 트리",
+            "diff 결과"
+          ]
+        },
+        {
+          "id": "P1-T02",
+          "title": "기존 모델 구현 제거",
+          "status": "pending",
+          "description": "models/stfpm.py, models/efficientad.py를 삭제하고 models/__init__.py의 해당 import를 제거한다. custom_ae.py와 models/ 디렉터리는 존치한다.",
+          "prd_refs": [
+            "FR-001"
+          ],
+          "spec_refs": [
+            "SPEC §2",
+            "SPEC §3",
+            "SPEC §5"
+          ],
+          "depends_on": [
+            "P0-T05"
+          ],
+          "parallelizable": true,
+          "parallel_group": "P1-CORE",
+          "execution_mode": "parallel",
+          "suggested_agent_role": "core",
+          "scope": {
+            "allowed": [
+              "두 파일 삭제",
+              "models/__init__.py 수정"
+            ],
+            "avoid": [
+              "custom_ae.py 삭제 또는 수정",
+              "models/ 디렉터리 삭제",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "configs/anomaly/custom_ae.yaml 이 여전히 해석되는지 확인한다.",
+            "삭제한 모듈을 참조하는 잔존 import가 없는지 검색한다."
+          ],
+          "completion_criteria": [
+            "두 파일이 제거되고 custom_ae 경로가 깨지지 않는다."
+          ],
+          "artifacts": [
+            "삭제 기록"
+          ]
+        },
+        {
+          "id": "P1-T03",
+          "title": "adam 빌더 추가",
+          "status": "pending",
+          "description": "core/builders.py에 adam 빌더를 등록한다. 모델명 분기가 아닌 범용 빌더다.",
+          "prd_refs": [
+            "FR-010",
+            "NFR-005"
+          ],
+          "spec_refs": [
+            "SPEC §4.2",
+            "SPEC §4.5",
+            "SPEC §5"
+          ],
+          "depends_on": [
+            "P0-T05"
+          ],
+          "parallelizable": true,
+          "parallel_group": "P1-CORE",
+          "execution_mode": "parallel",
+          "suggested_agent_role": "core",
+          "scope": {
+            "allowed": [
+              "BUILDERS.register('adam') 추가"
+            ],
+            "avoid": [
+              "build_optimizer 시그니처 변경",
+              "parameter group 기능 추가 (v0.1 범위 밖)",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "기존 adamw·sgd 빌더와 동일한 형태로 등록되었는지 확인한다."
+          ],
+          "completion_criteria": [
+            "config에서 optimizer.name: adam 이 해석된다."
+          ],
+          "artifacts": [
+            "core/builders.py 변경"
+          ]
+        },
+        {
+          "id": "P1-T04",
+          "title": "공통 AnomalyAdapter에서 model.train_step 위임 제거",
+          "status": "pending",
+          "description": "AnomalyAdapter.train_step의 model.train_step 위임을 제거하고, 모델별 adapter가 override하는 구조로 바꾼다. metric·threshold·visualize·on_fit_end의 threshold 계산은 공통에 유지한다.",
+          "prd_refs": [
+            "NFR-003",
+            "NFR-005"
+          ],
+          "spec_refs": [
+            "SPEC §4.1",
+            "SPEC §4.2",
+            "SPEC §4.3"
+          ],
+          "depends_on": [
+            "P0-T05"
+          ],
+          "parallelizable": true,
+          "parallel_group": "P1-CORE",
+          "execution_mode": "parallel",
+          "suggested_agent_role": "core",
+          "scope": {
+            "allowed": [
+              "adapter.py 수정",
+              "train_step 추상화"
+            ],
+            "avoid": [
+              "core/adapter.py 변경 (변경 없음 목표)",
+              "core/engine.py 변경",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "on_fit_end의 compute_thresholds 호출과 extra_final_metrics가 보존되는지 확인한다.",
+            "eval_step·predict_step의 출력 계약이 바뀌지 않았는지 확인한다."
+          ],
+          "completion_criteria": [
+            "공통 adapter가 모델 고유 train_step 계약에 의존하지 않는다."
+          ],
+          "artifacts": [
+            "tasks/anomaly/adapter.py 변경"
+          ]
+        },
+        {
+          "id": "P1-T05",
+          "title": "P1 완료 판정 — 공통 구조 검증",
+          "status": "pending",
+          "description": "MVTec 로딩과 AUROC 산출이 독립적으로 동작하고, 기존 hook만으로 EfficientAD lifecycle을 수용할 수 있는지 판단한다.",
+          "prd_refs": [
+            "FR-004",
+            "FR-006",
+            "NFR-004"
+          ],
+          "spec_refs": [
+            "SPEC §4.3",
+            "SPEC §6"
+          ],
+          "depends_on": [
+            "P1-T01",
+            "P1-T02",
+            "P1-T03",
+            "P1-T04"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "test",
+          "scope": {
+            "allowed": [
+              "구조 검토",
+              "SPEC §6 미결정 갱신"
+            ],
+            "avoid": [
+              "장시간 학습 실행 (PRD §5)",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "core/adapter.py의 기존 hook 집합이 EfficientAD의 auxiliary·통계·분위수를 모두 수용하는지 판정한다.",
+            "데이터셋 인터페이스가 MVTec 디렉터리 구조에 결합되지 않았는지 확인한다 (NFR-004)."
+          ],
+          "completion_criteria": [
+            "PLAN §3의 P1 완료 조건이 충족되고, core/adapter.py 변경 필요 여부가 결정된다."
+          ],
+          "artifacts": [
+            "P1 판정 기록"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "title": "STFPM 통합",
+      "status": "pending",
+      "depends_on": [
+        "P1"
+      ],
+      "exit_criteria": [
+        "StfpmAdapter가 upstream loss를 호출해 계약을 만족한다.",
+        "config만으로 STFPM이 조립된다.",
+        "train/evaluate/predict가 동작하고 결과가 산출된다."
+      ],
+      "tasks": [
+        {
+          "id": "P2-T01",
+          "title": "StfpmAdapter 구현",
+          "status": "pending",
+          "description": "AnomalyAdapter를 상속해 train_step에서 upstream STFPMLoss를 호출하고, upstream 출력을 {pred_score, anomaly_map} 계약으로 변환한다. teacher는 항상 eval() 유지한다.",
+          "prd_refs": [
+            "FR-002",
+            "FR-009",
+            "NFR-005"
+          ],
+          "spec_refs": [
+            "SPEC §4.2",
+            "SPEC §4.3",
+            "SPEC §4.4"
+          ],
+          "depends_on": [
+            "P1-T05"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "model",
+          "scope": {
+            "allowed": [
+              "adapters/stfpm.py 작성",
+              "upstream 호출",
+              "출력 변환"
+            ],
+            "avoid": [
+              "upstream/stfpm/ 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "train_step이 {loss, loss_dict}를, eval 경로가 {pred_score, anomaly_map}을 반환하는지 확인한다.",
+            "teacher 파라미터가 requires_grad=False이고 optimizer에 포함되지 않는지 확인한다."
+          ],
+          "completion_criteria": [
+            "StfpmAdapter가 공통 engine 위에서 계약을 만족한다."
+          ],
+          "artifacts": [
+            "adapters/stfpm.py"
+          ]
+        },
+        {
+          "id": "P2-T02",
+          "title": "STFPM config 작성",
+          "status": "pending",
+          "description": "configs/anomaly/stfpm.yaml에 SGD(lr 0.4, momentum 0.9, weight_decay 0.001), scheduler 없음, backbone 경로를 지정한다. 모델 등록명을 upstream nn.Module로 연결한다.",
+          "prd_refs": [
+            "FR-008",
+            "FR-009",
+            "CON-003"
+          ],
+          "spec_refs": [
+            "SPEC §4.2",
+            "SPEC §4.4"
+          ],
+          "depends_on": [
+            "P2-T01"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "core",
+          "scope": {
+            "allowed": [
+              "config 작성",
+              "MODELS 등록"
+            ],
+            "avoid": [
+              "코드에 경로 하드코딩 (원칙 3)",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "optimizer/scheduler가 config만으로 구성되는지 확인한다.",
+            "backbone 경로가 config에서 오는지 확인한다."
+          ],
+          "completion_criteria": [
+            "config만으로 STFPM이 조립된다."
+          ],
+          "artifacts": [
+            "configs/anomaly/stfpm.yaml"
+          ]
+        },
+        {
+          "id": "P2-T03",
+          "title": "STFPM end-to-end 동작 확인",
+          "status": "pending",
+          "description": "train/evaluate/predict가 동작하는지 짧은 실행으로 확인한다. 성능 판정은 P3에서 사용자가 수행한다.",
+          "prd_refs": [
+            "FR-003",
+            "FR-004",
+            "FR-005",
+            "FR-007"
+          ],
+          "spec_refs": [
+            "SPEC §4.4"
+          ],
+          "depends_on": [
+            "P2-T02"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "test",
+          "scope": {
+            "allowed": [
+              "단일 카테고리 소규모 실행",
+              "checkpoint 저장·복원 확인"
+            ],
+            "avoid": [
+              "장시간 학습 (PRD §5)",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "train→evaluate→predict가 오류 없이 완주하고 image/pixel AUROC가 산출된다 (AC-003).",
+            "checkpoint 저장·복원이 동작한다 (FR-007)."
+          ],
+          "completion_criteria": [
+            "세 명령이 모두 동작하고 결과 산출물이 생성된다."
+          ],
+          "artifacts": [
+            "실행 로그",
+            "metrics_final.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "title": "STFPM 성능 검증",
+      "status": "pending",
+      "depends_on": [
+        "P2"
+      ],
+      "exit_criteria": [
+        "대표 3개 카테고리가 선정된다.",
+        "사용자 실행 결과가 anomalib reference와 비교 가능하다 (PRD §5).",
+        "차이가 있으면 모델 코드가 아닌 adapter·boilerplate에서 해결된다."
+      ],
+      "tasks": [
+        {
+          "id": "P3-T01",
+          "title": "MVTec 대표 3개 카테고리 선정",
+          "status": "pending",
+          "description": "성능 판정에 쓸 3개 카테고리를 선정하고 근거를 기록한다.",
+          "prd_refs": [
+            "NFR-001"
+          ],
+          "spec_refs": [
+            "SPEC §6"
+          ],
+          "depends_on": [
+            "P2-T03"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "benchmark",
+          "scope": {
+            "allowed": [
+              "카테고리 선정",
+              "reference 값 정리"
+            ],
+            "avoid": [
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "PRD §5.2의 anomalib reference 값에서 해당 카테고리 값을 확인한다."
+          ],
+          "completion_criteria": [
+            "3개 카테고리와 각 reference 값이 확정된다."
+          ],
+          "artifacts": [
+            "카테고리 선정 기록"
+          ]
+        },
+        {
+          "id": "P3-T02",
+          "title": "STFPM 실행 명령 제시 및 사용자 결과 수령",
+          "status": "pending",
+          "description": "PRD §5 절차에 따라 사용자가 터미널에서 실행할 명령어를 제시하고, 결과를 피드백받는다. 에이전트는 학습을 임의로 실행하지 않는다.",
+          "prd_refs": [
+            "NFR-001",
+            "NFR-002"
+          ],
+          "spec_refs": [
+            "SPEC §4.4"
+          ],
+          "depends_on": [
+            "P3-T01"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "benchmark",
+          "scope": {
+            "allowed": [
+              "실행 명령어 제시",
+              "사용자 결과 수령·기록"
+            ],
+            "avoid": [
+              "에이전트의 장시간 학습 실행 (PRD §5)",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "3개 카테고리 각각의 image/pixel AUROC를 reference와 대조한다."
+          ],
+          "completion_criteria": [
+            "사용자 실행 결과가 reference와 비교 가능한 형태로 기록된다."
+          ],
+          "artifacts": [
+            "실행 명령어",
+            "AUROC 결과표"
+          ]
+        },
+        {
+          "id": "P3-T03",
+          "title": "차이 발생 시 원인 검토 및 수정",
+          "status": "pending",
+          "description": "결과가 reference와 다르면 PRD §5.4의 검토 항목을 순서대로 확인하고, 모델 코드가 아닌 adapter 또는 boilerplate에서 해결한다.",
+          "prd_refs": [
+            "NFR-001",
+            "CON-001"
+          ],
+          "spec_refs": [
+            "SPEC §4.4"
+          ],
+          "depends_on": [
+            "P3-T02"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "model",
+          "scope": {
+            "allowed": [
+              "adapter·config·boilerplate 수정",
+              "전처리·threshold·metric 검토"
+            ],
+            "avoid": [
+              "upstream/ 수정 (CON-001) — 원인이 무엇이든 금지",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "preprocessing·optimizer·pretrained weight·normalization·threshold·metric·protocol을 각각 확인한다."
+          ],
+          "completion_criteria": [
+            "사용자가 재현 성공으로 판단한다 (AC-004)."
+          ],
+          "artifacts": [
+            "원인 분석 기록"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P4",
+      "title": "EfficientAD 통합",
+      "status": "pending",
+      "depends_on": [
+        "P3"
+      ],
+      "exit_criteria": [
+        "auxiliary 데이터·teacher 통계·분위수 계산이 adapter에서 처리된다.",
+        "on_fit_end의 calibration→threshold 순서가 보장된다.",
+        "core/engine.py 시그니처가 변경되지 않는다.",
+        "학습 budget이 결정된다."
+      ],
+      "tasks": [
+        {
+          "id": "P4-T01",
+          "title": "EfficientAdAdapter — auxiliary loader 조달",
+          "status": "pending",
+          "description": "on_fit_start에서 config의 auxiliary 경로를 읽어 build_dataloader로 ImageNette loader를 생성하고 adapter에 보관한다. train_step에서 배치를 순환 소비한다. core/engine.py 시그니처는 바꾸지 않는다.",
+          "prd_refs": [
+            "FR-011",
+            "NFR-003",
+            "NFR-005"
+          ],
+          "spec_refs": [
+            "SPEC §4.5"
+          ],
+          "depends_on": [
+            "P3-T03"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "model",
+          "scope": {
+            "allowed": [
+              "adapters/efficientad.py 작성",
+              "build_dataloader 재사용",
+              "adapter.params로 경로 수신"
+            ],
+            "avoid": [
+              "core/engine.py에 세 번째 loader 추가 (NFR-003)",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "auxiliary loader가 train_loader보다 짧을 때 순환하는지 확인한다.",
+            "auxiliary 경로가 코드가 아닌 config에서 오는지 확인한다."
+          ],
+          "completion_criteria": [
+            "auxiliary 스트림이 adapter 안에서 조달·소비된다 (AC-007)."
+          ],
+          "artifacts": [
+            "adapters/efficientad.py"
+          ]
+        },
+        {
+          "id": "P4-T02",
+          "title": "EfficientAdAdapter — teacher 통계와 분위수 calibration",
+          "status": "pending",
+          "description": "on_fit_start에서 teacher 채널 통계를, on_fit_end에서 90%/99.5% 분위수를 계산한다. on_fit_end는 super()를 호출하며 분위수 calibration이 threshold 계산보다 먼저 끝나야 한다.",
+          "prd_refs": [
+            "FR-011"
+          ],
+          "spec_refs": [
+            "SPEC §4.3",
+            "SPEC §4.5"
+          ],
+          "depends_on": [
+            "P4-T01"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "model",
+          "scope": {
+            "allowed": [
+              "hook override",
+              "upstream 호출"
+            ],
+            "avoid": [
+              "upstream/efficient_ad/ 수정 (CON-001)",
+              "threshold 계산 순서 역전",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "super().on_fit_end() 호출과 calibration→threshold 순서를 확인한다.",
+            "통계는 train만, 분위수는 valid만 사용해 test 누출이 없는지 확인한다."
+          ],
+          "completion_criteria": [
+            "calibration이 best 가중치 기준으로 수행되고 threshold가 그 이후 값으로 결정된다."
+          ],
+          "artifacts": [
+            "hook 구현",
+            "순서 검증 기록"
+          ]
+        },
+        {
+          "id": "P4-T03",
+          "title": "EfficientAD config 작성",
+          "status": "pending",
+          "description": "Adam(lr 1e-4, weight_decay 1e-5), StepLR(step_size는 train.epochs의 95% 지점을 직접 기입하고 주석으로 짝을 명시), batch size 1, normalization 미사용, teacher·auxiliary 경로를 지정한다.",
+          "prd_refs": [
+            "FR-008",
+            "FR-010",
+            "CON-003"
+          ],
+          "spec_refs": [
+            "SPEC §4.5"
+          ],
+          "depends_on": [
+            "P4-T02"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "core",
+          "scope": {
+            "allowed": [
+              "config 작성",
+              "adapter.params에 auxiliary 경로 지정"
+            ],
+            "avoid": [
+              "config 파생값 문법 도입 (v0.1 범위 밖)",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "step_size와 train.epochs의 짝이 주석으로 남았는지 확인한다.",
+            "batch_size 1과 normalization 미사용이 반영되었는지 확인한다."
+          ],
+          "completion_criteria": [
+            "config만으로 EfficientAD가 조립된다."
+          ],
+          "artifacts": [
+            "configs/anomaly/efficientad.yaml"
+          ]
+        },
+        {
+          "id": "P4-T04",
+          "title": "EfficientAD end-to-end 동작 확인 및 학습 budget 결정",
+          "status": "pending",
+          "description": "train/evaluate/predict 동작을 확인하고, batch size 1에서 현실적인 epoch 수를 사용자와 함께 정한다.",
+          "prd_refs": [
+            "FR-003",
+            "FR-004",
+            "FR-005"
+          ],
+          "spec_refs": [
+            "SPEC §4.5",
+            "SPEC §6"
+          ],
+          "depends_on": [
+            "P4-T03"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "test",
+          "scope": {
+            "allowed": [
+              "소규모 실행",
+              "budget 산정"
+            ],
+            "avoid": [
+              "장시간 학습 (PRD §5)",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "세 명령이 완주하는지 확인한다 (AC-005).",
+            "1 epoch 소요 시간을 측정해 budget 근거를 만든다."
+          ],
+          "completion_criteria": [
+            "동작이 확인되고 SPEC §6의 학습 budget 항목이 해소된다."
+          ],
+          "artifacts": [
+            "실행 로그",
+            "budget 산정 근거"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P5",
+      "title": "EfficientAD 성능 검증",
+      "status": "pending",
+      "depends_on": [
+        "P4"
+      ],
+      "exit_criteria": [
+        "사용자 실행 결과가 reference와 비교 가능하다 (PRD §5).",
+        "PRD §6의 AC-001~AC-010이 전수 검증된다."
+      ],
+      "tasks": [
+        {
+          "id": "P5-T01",
+          "title": "EfficientAD 실행 명령 제시 및 사용자 결과 수령",
+          "status": "pending",
+          "description": "PRD §5 절차에 따라 3개 카테고리 실행 명령어를 제시하고 결과를 피드백받는다.",
+          "prd_refs": [
+            "NFR-001"
+          ],
+          "spec_refs": [
+            "SPEC §4.5"
+          ],
+          "depends_on": [
+            "P4-T04"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "benchmark",
+          "scope": {
+            "allowed": [
+              "실행 명령어 제시",
+              "결과 기록"
+            ],
+            "avoid": [
+              "에이전트의 장시간 학습 실행 (PRD §5)",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "image AUROC를 PRD §5.2의 EfficientAD-S reference와 대조한다."
+          ],
+          "completion_criteria": [
+            "결과가 reference와 비교 가능한 형태로 기록된다."
+          ],
+          "artifacts": [
+            "AUROC 결과표"
+          ]
+        },
+        {
+          "id": "P5-T02",
+          "title": "차이 발생 시 원인 검토 및 수정",
+          "status": "pending",
+          "description": "PRD §5.4 항목을 검토해 adapter 또는 boilerplate에서 해결한다.",
+          "prd_refs": [
+            "NFR-001",
+            "CON-001"
+          ],
+          "spec_refs": [
+            "SPEC §4.5"
+          ],
+          "depends_on": [
+            "P5-T01"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "model",
+          "scope": {
+            "allowed": [
+              "adapter·config·boilerplate 수정"
+            ],
+            "avoid": [
+              "upstream/ 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "auxiliary 스트림, teacher 통계, 분위수 스케일을 우선 확인한다."
+          ],
+          "completion_criteria": [
+            "사용자가 재현 성공으로 판단한다 (AC-006)."
+          ],
+          "artifacts": [
+            "원인 분석 기록"
+          ]
+        },
+        {
+          "id": "P5-T03",
+          "title": "완료 조건 전수 검증",
+          "status": "pending",
+          "description": "PRD §6의 AC-001~AC-010을 각각 검증한다.",
+          "prd_refs": [
+            "NFR-002",
+            "NFR-006"
+          ],
+          "spec_refs": [
+            "SPEC §5"
+          ],
+          "depends_on": [
+            "P5-T02"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "test",
+          "scope": {
+            "allowed": [
+              "diff·검색·오프라인 실행·반복 실행"
+            ],
+            "avoid": [
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "AC-001 upstream diff, AC-002 Lightning 부재 검색, AC-008 오프라인 실행, AC-009 동일 seed 재현, AC-010 모델명 분기 부재를 각각 확인한다."
+          ],
+          "completion_criteria": [
+            "10개 AC가 모두 충족되거나, 미충족 항목이 기록된다."
+          ],
+          "artifacts": [
+            "AC 검증표"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P6",
+      "title": "구조 정리 및 문서화",
+      "status": "pending",
+      "depends_on": [
+        "P5"
+      ],
+      "exit_criteria": [
+        "새 모델·데이터셋 추가 절차가 문서화된다.",
+        "upstream 출처·라이선스 인벤토리가 존재한다.",
+        "v0.2 진입 가능 여부가 판정된다."
+      ],
+      "tasks": [
+        {
+          "id": "P6-T01",
+          "title": "모델 추가 절차 문서화",
+          "status": "pending",
+          "description": "v0.1에서 확립된 구조를 기준으로 새 모델 추가 절차를 반복 가능한 형태로 문서화한다. BRIEF의 공통 절차 6단계를 실제 경험으로 보정한다.",
+          "prd_refs": [
+            "NFR-003"
+          ],
+          "spec_refs": [
+            "SPEC §3",
+            "SPEC §4"
+          ],
+          "depends_on": [
+            "P5-T03"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "core",
+          "scope": {
+            "allowed": [
+              "문서 작성",
+              "BRIEF 절차 보정 제안"
+            ],
+            "avoid": [
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "절차만 보고 세 번째 모델을 추가할 수 있는 수준인지 검토한다."
+          ],
+          "completion_criteria": [
+            "모델 추가 절차가 문서화된다."
+          ],
+          "artifacts": [
+            "모델 추가 가이드"
+          ]
+        },
+        {
+          "id": "P6-T02",
+          "title": "upstream 출처·라이선스 인벤토리 정리",
+          "status": "pending",
+          "description": "복사한 모든 파일의 anomalib commit, 라이선스, 로컬 자산, adapter, lifecycle hook을 연결한 인벤토리를 작성한다.",
+          "prd_refs": [
+            "FR-001",
+            "FR-012"
+          ],
+          "spec_refs": [
+            "SPEC §3"
+          ],
+          "depends_on": [
+            "P5-T03"
+          ],
+          "parallelizable": true,
+          "parallel_group": "P6-DOCS",
+          "execution_mode": "parallel",
+          "suggested_agent_role": "model",
+          "scope": {
+            "allowed": [
+              "인벤토리 작성"
+            ],
+            "avoid": [
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "파일별로 출처 commit과 라이선스가 연결되는지 확인한다."
+          ],
+          "completion_criteria": [
+            "v0.3·v0.4 확장 시 재사용 가능한 인벤토리가 존재한다."
+          ],
+          "artifacts": [
+            "upstream 인벤토리"
+          ]
+        },
+        {
+          "id": "P6-T03",
+          "title": "v0.1 구조 회고 및 v0.2 진입 판단",
+          "status": "pending",
+          "description": "확립된 추상화가 데이터셋 확장(v0.2)을 재설계 없이 수용하는지 검토한다. 재설계가 필요하면 v0.1 추상화 부족 신호로 기록한다.",
+          "prd_refs": [
+            "NFR-003",
+            "NFR-004"
+          ],
+          "spec_refs": [
+            "SPEC §6"
+          ],
+          "depends_on": [
+            "P6-T01",
+            "P6-T02"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "core",
+          "scope": {
+            "allowed": [
+              "구조 검토",
+              "미결정 항목 이월"
+            ],
+            "avoid": [
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "SPEC §6에 남은 미결정 항목을 v0.2로 이월하거나 해소한다."
+          ],
+          "completion_criteria": [
+            "v0.2 진입 가능 여부가 판정된다."
+          ],
+          "artifacts": [
+            "회고 기록"
+          ]
+        }
+      ]
+    }
+  ]
+}
