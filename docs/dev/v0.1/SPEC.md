@@ -62,6 +62,12 @@ anomalib 디렉터리 구조를 따르지 않고 이 프로젝트 구조에 맞�
 src/tasks/anomaly/
 ├── upstream/                   # anomalib 원본 — 수정 금지 구역
 │   ├── components/             # 모델 공통 의존 components
+│   │   ├── feature_extractors/
+│   │   │   ├── timm.py
+│   │   │   └── utils.py
+│   │   └── data/
+│   │       ├── generic.py      # dataclasses/generic.py 원본
+│   │       └── torch_base.py   # dataclasses/torch/base.py 원본 (InferenceBatch 포함)
 │   ├── stfpm/
 │   │   ├── torch_model.py
 │   │   ├── loss.py
@@ -77,12 +83,13 @@ src/tasks/anomaly/
 
 `upstream/` 하위는 import 경로 외 수정 금지. 기존 `models/stfpm.py`, `models/efficientad.py`는 삭제하며 **참조하지 않는다**(§2).
 
-#### 복사 시 주의 — 두 가지 함정
+#### 복사 시 주의 — 두 가지 함정 (P0-T03에서 실제 import 추적으로 확정)
 
-anomalib v2.3.0 원본을 확인한 결과 두 가지가 드러났다. 상세 파일 목록은 P0-T03에서 확정한다.
+anomalib v2.3.0 원본을 확인한 결과 두 가지가 드러났다.
 
-1. **`components/__init__.py`를 그대로 복사하면 Lightning이 딸려 온다.** 이 파일 39행이 `from .base import AnomalibModule, ...`를 하고, `components/base/anomalib_module.py`는 lightning을 import한다(`export_mixin.py`, `memory_bank_module.py`도 같다). 따라서 `upstream/components/`에는 **패키지 `__init__`이 아니라 실제로 필요한 모듈만** 옮기고, import는 모듈 단위로 직접 건다. STFPM에 필요한 것은 `feature_extractors/timm.py`와 그것이 쓰는 `feature_extractors/utils.py`뿐이며, 두 파일 모두 lightning을 import하지 않는다(CON-002).
-2. **두 `torch_model.py` 모두 `from anomalib.data import InferenceBatch`를 한다.** `InferenceBatch`는 `data/dataclasses/torch/base.py:26`의 `NamedTuple`이지만, `anomalib.data` 패키지 `__init__`은 datamodule 전체를 끌어온다. 패키지 경로를 그대로 두면 Lightning과 anomalib 데이터 계층이 함께 들어온다. 조달 방식은 §7의 미결정 항목이다.
+1. **`components/__init__.py`를 그대로 복사하면 Lightning이 딸려 온다.** 이 파일 39행이 `from .base import AnomalibModule, ...`를 하고, `components/base/anomalib_module.py`는 `import lightning.pytorch as pl`을 한다(`export_mixin.py`, `memory_bank_module.py`도 같다). 따라서 `upstream/components/`에는 **패키지 `__init__`이 아니라 실제로 필요한 모듈만** 옮기고, import는 모듈 단위로 직접 건다. STFPM에 필요한 것은 `feature_extractors/timm.py`와 그것이 쓰는 `feature_extractors/utils.py`뿐이며, 두 파일 모두 lightning을 import하지 않는다(CON-002).
+2. **두 `torch_model.py` 모두 `from anomalib.data import InferenceBatch`를 한다.** `InferenceBatch`는 `data/dataclasses/torch/base.py:26`의 `NamedTuple`이지만, `anomalib.data` 패키지 `__init__`은 `datamodules.base`·`datamodules.depth`·`datamodules.image`·`datamodules.video`를 전부 끌어오고 이들은 `AnomalibDataModule`(lightning `DataModule`)에 닿는다. `anomalib` 패키지 경로를 통해 import하는 한 어떤 하위 모듈을 지정하든 부모 패키지 `__init__`이 먼저 실행되어 Lightning이 함께 들어온다.
+   결정: `data/dataclasses/torch/base.py`와 그 유일한 내부 의존인 `data/dataclasses/generic.py`를 **파일째 `upstream/components/data/`로 복사**하고, `torch_model.py` 두 곳의 import만 로컬 경로(`from tasks.anomaly.upstream.components.data.torch_base import InferenceBatch` 형태, 정확한 모듈 경로는 P1-T01에서 확정)로 바꾼다. 두 파일 모두 torch·numpy·torchvision 외 의존이 없고(lightning 없음), `InferenceBatch` 외에 함께 딸려 오는 `ToNumpyMixin`·`DatasetItem`·`Batch`(base.py)는 미사용이지만 파일 단위 복사 원칙(CON-001 — import 경로 외 수정 금지)상 클래스만 추출하지 않고 파일 전체를 그대로 둔다.
 
 `models/` 디렉터리 자체는 삭제하지 않는다. `custom_ae.py`는 v0.1 범위 밖이지만 registry에 `custom_ae_anomaly`로 등록되어 있고 `configs/anomaly/custom_ae.yaml`이 이를 참조하므로, 디렉터리째 삭제하면 기존 config가 깨진다. `models/`에는 `custom_ae.py`와 `__init__.py`만 남는다.
 
@@ -374,10 +381,10 @@ config가 만들어지는 경로는 두 곳이며 **둘 다** 치환을 거쳐�
 | 항목 | 결정 시점 |
 |---|---|
 | ~~anomalib 대상 commit 고정~~ | 완료 — `v2.3.0` / `091ca6a` |
-| `upstream/components/`에 복사할 정확한 파일 목록 | P0 (실제 import 추적 후) |
+| ~~`upstream/components/`에 복사할 정확한 파일 목록~~ | 완료 — P0-T03, §3 트리 참조 |
 | 기존 hook만으로 EfficientAD lifecycle이 충분한지 | P1 |
 | auxiliary transform이 `transform.py`에 별도로 필요한지 (§4.5) | P4 (upstream `torch_model.py` 확인 후) |
-| `InferenceBatch` 조달 방식 — `dataclasses/torch/base.py`와 `dataclasses/generic.py`를 함께 복사할지, 다른 방식을 쓸지 (§3) | P0-T03 |
+| ~~`InferenceBatch` 조달 방식~~ | 완료 — P0-T03, `dataclasses/torch/base.py` + `dataclasses/generic.py` 파일째 복사(§3) |
 | torchvision resnet18 state_dict의 unexpected key가 classifier head뿐인지 (§4.6) | P2 |
 | EfficientAD 학습 budget — batch size 1에서 몇 epoch을 돌릴지 | P4 (PRD §5에 따라 사용자 실행 시간과 함께 판단) |
 | MVTec 대표 3개 카테고리 선정 | P3 |
