@@ -47,8 +47,10 @@
 
 ### 원칙 3 — 데이터셋과 pretrained 가중치는 로컬 폴더의 것을 사용한다
 
-- 데이터셋은 `/mnt/d/datasets`, pretrained 가중치는 `/mnt/d/backbones`의 로컬 경로만 참조한다.
+- config가 가리키는 로컬 자산만 사용한다. 개발 머신의 기본값은 데이터셋 `/mnt/d/datasets`, pretrained 가중치 `/mnt/d/backbones`다.
 - 경로는 config로 지정하며 코드에 하드코딩하지 않는다.
+- **경로 자체는 머신마다 다를 수 있다.** 이 저장소는 압축 배포로 여러 로컬 환경에서 사용되므로, config에는 `${paths.dataset_root}`·`${paths.backbone_root}` placeholder를 쓰고 실제 값은 `configs/local.yaml` 또는 환경변수 `DATASET_DIR`·`BACKBONE_DIR`로 받는다(SPEC §6). placeholder를 절대 경로로 되돌리지 않는다.
+- 지정된 root가 없으면 개발 머신 기본값으로 조용히 폴백하지 않고 `ConfigError`로 즉시 실패한다.
 - **에이전트는 데이터셋·모델·라이브러리를 자동으로 다운로드하거나 설치하지 않는다.** 필요한 자산이 없으면 무엇이 어느 경로에 필요한지 사용자에게 알리고, 준비될 때까지 해당 작업을 진행하지 않고 대기한다.
 - anomalib 원본에 포함된 다운로드 로직을 코드 수정으로 제거하지 않는다(원칙 1). 로컬 자산을 지정해 그 경로를 타지 않도록 adapter 또는 boilerplate에서 처리한다.
 

@@ -4,11 +4,16 @@
 
 ## 1. 참고 저장소
 
+네 저장소 모두 로컬에 있다. **원격이 아니라 아래 로컬 경로를 참조한다.** 네 곳 모두 이 프로젝트 범위 밖이므로 읽기만 한다.
+
+anomalib은 sparse checkout으로 `models/image/stfpm`, `models/image/efficient_ad`, `models/components`, `data` 네 하위 트리만 받아 두었다.
+
 | 저장소 | 역할 |
 |---|---|
-| [`nampluskr/defectvad`](https://github.com/nampluskr/defectvad) | 리팩터링 대상. 20개 모델의 구현 경험과 시행착오를 참고한다 |
-| [`nampluskr/cv_boilerplate`](https://github.com/nampluskr/cv_boilerplate) | 통합 기반. 순수 PyTorch 실행 프레임워크 |
-| [`nampluskr/roi-corner-detection-ver3`](https://github.com/nampluskr/roi-corner-detection-ver3) | 참고. CLI·batch로 여러 모델과 실험 조건을 조립해 실행한 선례 |
+| `anomalib@091ca6a` (`v2.3.0`, 로컬: `/mnt/d/projects/clones/anomalib`) | 모델 SSOT. `upstream/`에 복사할 원본. Apache-2.0 |
+| `defectvad@14879ea` (로컬: `/mnt/d/archive/_inbox/github/defectvad`) | 리팩터링 대상. 20개 모델의 구현 경험과 시행착오를 참고한다 |
+| `cv_boilerplate@65d5412` (로컬: `/mnt/d/projects/nampluskr/00_review/260818_cv-boilerplate`) | 통합 기반. 순수 PyTorch 실행 프레임워크 |
+| `roi-corner-detection-ver3@8ae989a` (로컬: `/mnt/d/projects/nampluskr/00_review/260720_roi-corner-detection-ver3`) | 참고. CLI·batch로 여러 모델과 실험 조건을 조립해 실행한 선례 |
 
 ### 1.1 코드 비교 분석 참조
 
@@ -55,8 +60,8 @@ v0.1에서 두 모델을 고른 이유는 lifecycle 특성이 서로 다르기 �
 
 | Phase | 단계 | 목적 | 완료 조건 |
 |---|---|---|---|
-| **P0** | 기준 확정 | 대상 anomalib commit, boilerplate 구조, 로컬 자산 경로를 고정한다 | 복사 대상 파일 목록과 reference 성능 기준값이 문서화됨 |
-| **P1** | 공통 구조 설계 | anomaly task의 데이터셋·metric·wrapper 경계를 정의한다 | MVTec 로딩과 AUROC 산출이 독립적으로 검증되고, 데이터셋 인터페이스가 MVTec 구조에 결합되지 않음 |
+| **P0** | 기준 확정 | 대상 anomalib commit, boilerplate 구조, 로컬 자산 경로를 고정하고 cv_boilerplate 실행 코드를 반입한다 | 복사 대상 파일 목록과 reference 성능 기준값이 문서화되고, `src/`·`configs/`가 저장소에 실재함 |
+| **P1** | 공통 구조 설계 | anomaly task의 데이터셋·metric·wrapper 경계를 정의하고, 로컬 환경별 경로 이식성을 확보한다 | MVTec 로딩과 AUROC 산출이 독립적으로 검증되고, 데이터셋 인터페이스가 MVTec 구조에 결합되지 않으며, config의 자산 경로가 머신별로 지정 가능함(SPEC §6) |
 | **P2** | STFPM 통합 | 첫 모델로 end-to-end 흐름을 완성한다 | train/evaluate/predict가 동작하고 결과가 산출됨 |
 | **P3** | STFPM 성능 검증 | anomalib reference 성능을 재현한다 | 대표 3개 카테고리에서 사용자 실행 결과가 reference와 비교 가능 (PRD §5) |
 | **P4** | EfficientAD 통합 | 다른 lifecycle을 공통 구조로 수용한다 | auxiliary 데이터·통계 계산이 wrapper에서 처리됨 |
@@ -110,6 +115,10 @@ anomalib에는 있으나 defectvad에서 다루지 않은 10개 모델이다. v0
 - 원칙 1 — anomalib 모델 코드는 경로를 제외하고 수정하지 않는다.
 - 원칙 2 — Lightning을 사용하지 않으며, boilerplate는 필요에 따라 개선한다.
 - 원칙 3 — 로컬 자산만 사용하며, 자동 다운로드 없이 오프라인으로 실행한다.
+
+로컬 자산의 **경로**는 머신마다 다를 수 있다. 이 저장소는 압축 배포로 여러 로컬 환경에서 사용되므로, 자산 경로는 `configs/local.yaml`과 환경변수로 머신별 지정이 가능해야 한다. 상세는 [SPEC.md](SPEC.md) §6.
+
+pretrained 가중치는 upstream 생성자를 no-download 상태로 호출한 뒤 adapter 팩토리가 로컬 `.pth`를 주입하는 방식(A안)으로 조달한다. upstream `torch_model.py`는 수정하지 않는다. 상세는 [SPEC.md](SPEC.md) §4.6.
 
 ---
 

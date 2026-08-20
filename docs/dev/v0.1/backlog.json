@@ -4,6 +4,31 @@
   "created": "2026-08-20",
   "scope": "STFPM, EfficientAD, MVTec AD — cv_boilerplate@65d5412 위의 anomaly detection 통합",
   "remote_repository": "https://github.com/nampluskr/defectvad-refactor",
+  "reference_repositories": {
+    "anomalib": {
+      "local_path": "/mnt/d/projects/clones/anomalib",
+      "commit": "091ca6a",
+      "tag": "v2.3.0",
+      "license": "Apache-2.0",
+      "checkout": "sparse checkout: src/anomalib/models/image/stfpm, src/anomalib/models/image/efficient_ad, src/anomalib/models/components, src/anomalib/data",
+      "note": "모델 SSOT. upstream/ 복사 원본. 읽기 전용"
+    },
+    "defectvad": {
+      "local_path": "/mnt/d/archive/_inbox/github/defectvad",
+      "commit": "14879ea",
+      "note": "리팩터링 대상 레거시. 원격 대신 이 로컬 경로를 참조한다. 읽기 전용"
+    },
+    "cv_boilerplate": {
+      "local_path": "/mnt/d/projects/nampluskr/00_review/260818_cv-boilerplate",
+      "commit": "65d5412",
+      "note": "통합 기반. 순수 PyTorch 실행 프레임워크. 읽기 전용"
+    },
+    "roi_corner_detection_ver3": {
+      "local_path": "/mnt/d/projects/nampluskr/00_review/260720_roi-corner-detection-ver3",
+      "commit": "8ae989a",
+      "note": "참고. CLI·batch 조립 실행 선례. 읽기 전용"
+    }
+  },
   "source_documents": {
     "brief": "BRIEF.md",
     "prd": "PRD.md",
@@ -59,7 +84,8 @@
         "upstream/ 에 복사할 파일 목록이 실제 import 추적으로 확정된다.",
         "로컬 자산 4종의 존재가 확인되거나 누락이 사용자에게 보고된다.",
         "reference 성능 기준값이 문서화되어 있다 (PRD §5.2).",
-        "SPEC §4.4/§4.5의 하이퍼파라미터가 lightning_model.py 원본과 대조된다."
+        "SPEC §4.4/§4.5의 하이퍼파라미터가 lightning_model.py 원본과 대조된다.",
+        "cv_boilerplate 실행 코드가 이 저장소에 반입되고 반입 시점 commit이 기록된다."
       ],
       "tasks": [
         {
@@ -108,15 +134,15 @@
         {
           "id": "P0-T02",
           "title": "anomalib 소스 확보 상태 확인 및 commit 고정",
-          "status": "ready",
-          "description": "anomalib 소스가 로컬에 있는지 확인하고, 있으면 대상 commit을 고정한다. 없으면 CON-004에 따라 사용자에게 요청하고 대기한다. 이 작업이 막히면 P0 이후 전체가 차단된다.",
+          "status": "done",
+          "description": "anomalib 소스를 확보하고 대상 commit을 고정한다. (완료) /mnt/d/projects/clones/anomalib 에 sparse checkout으로 clone했고 v2.3.0 / 091ca6a 로 고정했다. 라이선스는 Apache-2.0이다.",
           "prd_refs": [
             "FR-001",
             "CON-004"
           ],
           "spec_refs": [
             "SPEC §2",
-            "SPEC §6"
+            "SPEC §7"
           ],
           "depends_on": [],
           "parallelizable": true,
@@ -142,14 +168,15 @@
             "대상 commit이 고정되거나, 소스 부재가 사용자에게 보고되고 P0-T03이 차단된다."
           ],
           "artifacts": [
-            "anomalib commit hash",
-            "라이선스 기록"
+            "anomalib@091ca6a (v2.3.0)",
+            "Apache-2.0 LICENSE",
+            "로컬 경로 /mnt/d/projects/clones/anomalib"
           ]
         },
         {
           "id": "P0-T03",
           "title": "복사 대상 파일 목록 확정",
-          "status": "pending",
+          "status": "ready",
           "description": "STFPM과 EfficientAD의 순수 PyTorch 파일 및 이들이 의존하는 anomalib components를 실제 import 추적으로 확정한다. BRIEF의 예상 파일 구성이 실제와 일치하는지 대조한다.",
           "prd_refs": [
             "FR-001",
@@ -158,7 +185,7 @@
           ],
           "spec_refs": [
             "SPEC §3",
-            "SPEC §6"
+            "SPEC §7"
           ],
           "depends_on": [
             "P0-T02"
@@ -183,7 +210,9 @@
           },
           "verification": [
             "STFPM·EfficientAD 각각의 transitive import를 추적해 components 목록을 만든다.",
-            "BRIEF §모델 추가 예시의 예상 파일 구성과 실제를 대조하고 차이를 기록한다."
+            "BRIEF §모델 추가 예시의 예상 파일 구성과 실제를 대조하고 차이를 기록한다.",
+            "components/__init__.py 를 복사 대상에서 제외하고 필요한 모듈만 열거한다 — __init__ 39행이 components/base 를 끌어오고 그 안에서 lightning을 import한다 (CON-002, SPEC §3).",
+            "두 torch_model.py 가 import하는 InferenceBatch(data/dataclasses/torch/base.py) 조달 방식을 결정하고 기록한다 — anomalib.data 패키지 __init__ 은 datamodule 전체를 끌어온다 (SPEC §3, §6)."
           ],
           "completion_criteria": [
             "upstream/ 에 복사할 파일이 경로 단위로 열거되고, components 목록이 확정된다."
@@ -195,8 +224,8 @@
         {
           "id": "P0-T04",
           "title": "lightning_model.py 정독 및 SPEC 하이퍼파라미터 대조",
-          "status": "pending",
-          "description": "두 모델의 lightning_model.py를 읽고 SPEC §4.4/§4.5 표의 optimizer·scheduler·hook 매핑이 원본과 일치하는지 대조한다. 특히 EfficientAD 분위수 계산이 어떤 데이터를 보는지 확인한다.",
+          "status": "ready",
+          "description": "두 모델의 lightning_model.py를 읽고 SPEC §4.4/§4.5 표의 optimizer·scheduler·hook 매핑이 원본과 일치하는지 대조한다. 특히 EfficientAD 분위수 계산이 어떤 데이터를 보는지 확인한다. 또한 STFPM torch_model.py의 teacher 생성이 pretrained를 어떤 인자로 받는지, EfficientAD teacher 가중치 로드가 lightning_model.py 어디에 있는지 확인한다(SPEC §4.6). 레거시 defectvad의 대응 파일(/mnt/d/archive/_inbox/github/defectvad)을 읽기 참조로 대조할 수 있다.",
           "prd_refs": [
             "FR-002",
             "FR-009",
@@ -206,7 +235,8 @@
           ],
           "spec_refs": [
             "SPEC §4.4",
-            "SPEC §4.5"
+            "SPEC §4.5",
+            "SPEC §4.6"
           ],
           "depends_on": [
             "P0-T02"
@@ -230,13 +260,63 @@
           },
           "verification": [
             "SGD/Adam 하이퍼파라미터, StepLR 시점, batch size 1 제약이 원본과 일치하는지 확인한다.",
-            "on_validation_start의 분위수 계산이 어떤 loader를 쓰는지 확인하고 SPEC §4.3의 on_fit_end(valid) 매핑이 타당한지 판정한다."
+            "on_validation_start의 분위수 계산이 어떤 loader를 쓰는지 확인하고 SPEC §4.3의 on_fit_end(valid) 매핑이 타당한지 판정한다.",
+            "STFPM teacher의 pretrained 인자 전달 형태(timm.create_model 직접 호출인지 TimmFeatureExtractor 인자인지)와 EfficientAD teacher 가중치 로드 위치를 기록한다."
           ],
           "completion_criteria": [
             "SPEC §4.4/§4.5와 원본의 차이가 없거나, 차이가 기록되고 SPEC 갱신이 요청된다."
           ],
           "artifacts": [
             "hook 매핑 대조표"
+          ]
+        },
+        {
+          "id": "P0-T06",
+          "title": "cv_boilerplate 코드 반입",
+          "status": "ready",
+          "description": "cv_boilerplate@65d5412(/mnt/d/projects/nampluskr/00_review/260818_cv-boilerplate)의 실행 코드를 이 저장소로 가져온다. SPEC은 src/ 가 이미 있다는 전제로 쓰여 있으나 현 저장소에는 문서만 있으므로, 이 작업이 끝나야 P1 전체가 실행 가능하다. 반입 대상은 src/, configs/, scripts/, requirements.txt, .gitignore 이며 outputs/ 는 제외한다. cv_boilerplate의 CLAUDE.md·AGENTS.md·docs/ 는 이 저장소의 지침·문서 체인과 충돌하므로 가져오지 않는다.",
+          "prd_refs": [
+            "FR-001",
+            "NFR-003",
+            "NFR-005"
+          ],
+          "spec_refs": [
+            "SPEC §1",
+            "SPEC §3",
+            "SPEC §5"
+          ],
+          "depends_on": [],
+          "parallelizable": true,
+          "parallel_group": "P0-PREP",
+          "execution_mode": "parallel",
+          "suggested_agent_role": "core",
+          "scope": {
+            "allowed": [
+              "cv_boilerplate 실행 코드 복사",
+              "복사 시점 commit 기록",
+              ".gitignore 병합",
+              "notebooks/ 반입 여부 사용자 확인"
+            ],
+            "avoid": [
+              "복사와 동시에 코드 수정 — 반입은 원본 그대로 하고 변경은 P1 이후 task에서 한다",
+              "cv_boilerplate의 CLAUDE.md·AGENTS.md·docs/ 반입",
+              "outputs/·체크포인트·실험 산출물 반입",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)"
+            ]
+          },
+          "verification": [
+            "SPEC §1의 현재 구조 트리와 반입된 src/ 트리가 일치하는지 확인한다.",
+            "복사본과 cv_boilerplate@65d5412 를 diff해 차이가 없음을 확인한다.",
+            "python -m src print-config 로 기존 config가 그대로 조립되는지 확인한다 (5개 task 중 최소 2개)."
+          ],
+          "completion_criteria": [
+            "SPEC §1·§5가 참조하는 파일들이 저장소에 실재하고, 반입 시점 commit이 기록된다."
+          ],
+          "artifacts": [
+            "src/, configs/, scripts/, requirements.txt",
+            "반입 시점 commit 기록"
           ]
         },
         {
@@ -248,12 +328,13 @@
             "NFR-002"
           ],
           "spec_refs": [
-            "SPEC §6"
+            "SPEC §7"
           ],
           "depends_on": [
             "P0-T01",
             "P0-T03",
-            "P0-T04"
+            "P0-T04",
+            "P0-T06"
           ],
           "parallelizable": false,
           "parallel_group": null,
@@ -273,7 +354,7 @@
           },
           "verification": [
             "PLAN §3의 P0 완료 조건 두 가지를 각각 확인한다.",
-            "SPEC §6 미결정 표에서 P0 항목이 해소되었는지 확인한다."
+            "SPEC §7 미결정 표에서 P0 항목이 해소되었는지 확인한다."
           ],
           "completion_criteria": [
             "P0 완료 조건이 충족되고 P1이 ready로 전환된다."
@@ -296,7 +377,8 @@
         "기존 stfpm.py·efficientad.py가 제거되고 custom_ae 경로가 유지된다.",
         "MVTec 로딩과 AUROC 산출이 독립적으로 검증된다.",
         "데이터셋 인터페이스가 MVTec 구조에 결합되지 않는다.",
-        "core/adapter.py 변경 필요 여부가 결정된다."
+        "core/adapter.py 변경 필요 여부가 결정된다.",
+        "config의 자산 경로가 머신별로 지정 가능하고, 미지정 시 즉시 실패한다 (SPEC §6)."
       ],
       "tasks": [
         {
@@ -478,6 +560,67 @@
           ]
         },
         {
+          "id": "P1-T06",
+          "title": "로컬 환경 경로 이식성 도입",
+          "status": "pending",
+          "description": "config에 최상위 paths 블록(dataset_root, backbone_root)을 신설하고, 나머지 config의 절대 경로를 ${paths.*} placeholder로 바꾼다. 해석 우선순위는 --set > 환경변수(DATASET_DIR, BACKBONE_DIR) > configs/local.yaml > config 기본값이며, root가 없으면 ConfigError로 즉시 실패한다. 압축 배포된 저장소를 다른 로컬 환경에서 파일 수정 없이 쓰기 위한 작업이다 (SPEC §6). 실행 순서상 P1-T05 완료 판정보다 앞이다.",
+          "prd_refs": [
+            "FR-008",
+            "NFR-002",
+            "NFR-007",
+            "CON-003"
+          ],
+          "spec_refs": [
+            "SPEC §6",
+            "SPEC §6.2",
+            "SPEC §6.3",
+            "SPEC §6.4"
+          ],
+          "depends_on": [
+            "P1-T03"
+          ],
+          "parallelizable": false,
+          "parallel_group": null,
+          "execution_mode": "sequential",
+          "suggested_agent_role": "core",
+          "scope": {
+            "allowed": [
+              "core/config.py에 resolve_paths·interpolate 추가 (등급 C, 승인 완료)",
+              "bench/runner.py의 resolve_split_configs에 같은 치환 적용",
+              "cli/commands.py의 check_assets 치환, cli/parser.py에 --local-config 추가",
+              "core/offline.py의 TORCH_HOME·HF_HOME 기본값에서 절대 경로 제거",
+              "configs/ 하위 5개 task의 절대 경로를 placeholder로 치환",
+              "configs/local.example.yaml 신규, .gitignore에 configs/local.yaml 추가",
+              "README에 새 머신 설치 절차 기재"
+            ],
+            "avoid": [
+              "python-dotenv·omegaconf 등 새 의존성 추가 (사용자 승인 없이 금지)",
+              "root 부재 시 개발 머신 기본값으로 조용한 폴백",
+              "configs/local.yaml을 저장소에 커밋",
+              "upstream/ 파일 수정 (CON-001)",
+              "Lightning 도입 (CON-002)",
+              "자동 다운로드·설치 (CON-004)",
+              "공통 engine의 모델명·task명 분기 (NFR-005)"
+            ]
+          },
+          "verification": [
+            "치환이 resolve_config와 resolve_split_configs 양쪽 경로에서 모두 일어나는지 확인한다.",
+            "--set 적용 후에 치환이 일어나 --set paths.* 가 placeholder에 반영되는지 확인한다.",
+            "존재하지 않는 root를 지정하면 ConfigError로 즉시 실패하고, 메시지가 local.yaml 경로와 환경변수 이름을 알려주는지 확인한다.",
+            "config.resolved.yaml에 치환된 절대 경로와 paths._source가 남는지 확인한다 (NFR-002).",
+            "anomaly 외 4개 task의 config가 여전히 조립되는지 확인한다 (NFR-003)."
+          ],
+          "completion_criteria": [
+            "저장소 파일을 수정하지 않고 configs/local.yaml 또는 환경변수만으로 다른 로컬 환경에서 실행할 수 있다.",
+            "configs/ 하위에 /mnt/d 절대 경로가 남지 않는다 (개발 머신 기본값을 적는 _base.yaml의 paths 블록은 예외)."
+          ],
+          "artifacts": [
+            "core/config.py의 resolve_paths·interpolate",
+            "configs/local.example.yaml",
+            "placeholder로 치환된 config 일습"
+          ]
+        },
+        {
           "id": "P1-T05",
           "title": "P1 완료 판정 — 공통 구조 검증",
           "status": "pending",
@@ -489,13 +632,14 @@
           ],
           "spec_refs": [
             "SPEC §4.3",
-            "SPEC §6"
+            "SPEC §7"
           ],
           "depends_on": [
             "P1-T01",
             "P1-T02",
             "P1-T03",
-            "P1-T04"
+            "P1-T04",
+            "P1-T06"
           ],
           "parallelizable": false,
           "parallel_group": null,
@@ -504,7 +648,7 @@
           "scope": {
             "allowed": [
               "구조 검토",
-              "SPEC §6 미결정 갱신"
+              "SPEC §7 미결정 갱신"
             ],
             "avoid": [
               "장시간 학습 실행 (PRD §5)",
@@ -542,18 +686,23 @@
       "tasks": [
         {
           "id": "P2-T01",
-          "title": "StfpmAdapter 구현",
+          "title": "StfpmAdapter 및 no-download 모델 팩토리 구현",
           "status": "pending",
-          "description": "AnomalyAdapter를 상속해 train_step에서 upstream STFPMLoss를 호출하고, upstream 출력을 {pred_score, anomaly_map} 계약으로 변환한다. teacher는 항상 eval() 유지한다.",
+          "description": "AnomalyAdapter를 상속해 train_step에서 upstream STFPMLoss를 호출하고, upstream 출력을 {pred_score, anomaly_map} 계약으로 변환한다. 함께 adapters/stfpm.py에 모델 팩토리를 두어, timm pretrained를 False로 강제한 상태에서 upstream STFPMModel을 생성한 뒤 teacher feature extractor에만 로컬 .pth를 적재한다(SPEC §4.6 A안). 치환 대상은 timm.create_model이며 pretrained=False와 pretrained_cfg=None을 강제한다. teacher는 항상 eval() 유지한다.",
           "prd_refs": [
+            "CON-001",
+            "CON-003",
+            "CON-004",
             "FR-002",
             "FR-009",
-            "NFR-005"
+            "NFR-005",
+            "NFR-006"
           ],
           "spec_refs": [
             "SPEC §4.2",
             "SPEC §4.3",
-            "SPEC §4.4"
+            "SPEC §4.4",
+            "SPEC §4.6"
           ],
           "depends_on": [
             "P1-T05"
@@ -566,31 +715,44 @@
             "allowed": [
               "adapters/stfpm.py 작성",
               "upstream 호출",
-              "출력 변환"
+              "출력 변환",
+              "adapters/stfpm.py의 모델 팩토리 작성 (timm pretrained 차단 후 로컬 주입)",
+              "core/offline.py#load_local_weights 재사용",
+              "레거시 defectvad(/mnt/d/archive/_inbox/github/defectvad) components/feature_extractor.py 읽기 참조"
             ],
             "avoid": [
               "upstream/stfpm/ 수정 (CON-001)",
               "Lightning 도입 (CON-002)",
               "자동 다운로드·설치 (CON-004)",
-              "공통 engine의 모델명·task명 분기 (NFR-005)"
+              "공통 engine의 모델명·task명 분기 (NFR-005)",
+              "upstream torch_model.py의 pre_trained 값 변경 (CON-001, SPEC §4.6 C안)",
+              "core/에 pretrained 차단 컨텍스트 일반화 (NFR-005)",
+              "가중치 부재 시 랜덤 초기화 조용한 폴백 (CON-004)"
             ]
           },
           "verification": [
             "train_step이 {loss, loss_dict}를, eval 경로가 {pred_score, anomaly_map}을 반환하는지 확인한다.",
-            "teacher 파라미터가 requires_grad=False이고 optimizer에 포함되지 않는지 확인한다."
+            "teacher 파라미터가 requires_grad=False이고 optimizer에 포함되지 않는지 확인한다.",
+            "모델 생성 중 네트워크 접근이 없는지 offline guard가 켜진 상태에서 확인한다.",
+            "teacher에만 로컬 가중치가 주입되고 student는 랜덤 초기화로 남는지 확인한다.",
+            "pretrained 차단 치환이 생성 직후 try/finally로 원복되는지 확인한다.",
+            "가중치 파일이 없거나 경로가 틀리면 LocalAssetError로 실패하는지 확인한다.",
+            "missing key가 하나라도 있으면 실패하고, unexpected key는 classifier head(fc./head.)에 한해 허용되는지 확인한다 (SPEC §4.6)."
           ],
           "completion_criteria": [
-            "StfpmAdapter가 공통 engine 위에서 계약을 만족한다."
+            "StfpmAdapter가 공통 engine 위에서 계약을 만족한다.",
+            "upstream 수정 없이 오프라인으로 STFPM teacher가 로컬 가중치로 초기화된다."
           ],
           "artifacts": [
-            "adapters/stfpm.py"
+            "adapters/stfpm.py",
+            "모델 팩토리 (MODELS 등록)"
           ]
         },
         {
           "id": "P2-T02",
           "title": "STFPM config 작성",
           "status": "pending",
-          "description": "configs/anomaly/stfpm.yaml에 SGD(lr 0.4, momentum 0.9, weight_decay 0.001), scheduler 없음, backbone 경로를 지정한다. 모델 등록명을 upstream nn.Module로 연결한다.",
+          "description": "configs/anomaly/stfpm.yaml에 SGD(lr 0.4, momentum 0.9, weight_decay 0.001), scheduler 없음, backbone 가중치 경로를 지정한다. 모델 등록명은 adapters/stfpm.py의 팩토리(SPEC §4.6)에 연결하며, 팩토리는 upstream nn.Module을 반환한다.",
           "prd_refs": [
             "FR-008",
             "FR-009",
@@ -598,7 +760,8 @@
           ],
           "spec_refs": [
             "SPEC §4.2",
-            "SPEC §4.4"
+            "SPEC §4.4",
+            "SPEC §4.6"
           ],
           "depends_on": [
             "P2-T01"
@@ -622,7 +785,8 @@
           },
           "verification": [
             "optimizer/scheduler가 config만으로 구성되는지 확인한다.",
-            "backbone 경로가 config에서 오는지 확인한다."
+            "backbone 경로가 config에서 오는지 확인한다.",
+            "backbone 가중치 경로가 config에서 팩토리 params로 전달되는지 확인한다."
           ],
           "completion_criteria": [
             "config만으로 STFPM이 조립된다."
@@ -701,7 +865,7 @@
             "NFR-001"
           ],
           "spec_refs": [
-            "SPEC §6"
+            "SPEC §7"
           ],
           "depends_on": [
             "P2-T03"
@@ -879,15 +1043,19 @@
         },
         {
           "id": "P4-T02",
-          "title": "EfficientAdAdapter — teacher 통계와 분위수 calibration",
+          "title": "EfficientAdAdapter — teacher 가중치 로드, 통계와 분위수 calibration",
           "status": "pending",
-          "description": "on_fit_start에서 teacher 채널 통계를, on_fit_end에서 90%/99.5% 분위수를 계산한다. on_fit_end는 super()를 호출하며 분위수 calibration이 threshold 계산보다 먼저 끝나야 한다.",
+          "description": "on_fit_start에서 로컬 pretrained teacher 가중치를 strict load 하고(다운로드 없음, SPEC §4.6) teacher 채널 통계를 계산한다. on_fit_end에서 90%/99.5% 분위수를 계산한다. on_fit_end는 super()를 호출하며 분위수 calibration이 threshold 계산보다 먼저 끝나야 한다.",
           "prd_refs": [
-            "FR-011"
+            "CON-003",
+            "CON-004",
+            "FR-011",
+            "NFR-006"
           ],
           "spec_refs": [
             "SPEC §4.3",
-            "SPEC §4.5"
+            "SPEC §4.5",
+            "SPEC §4.6"
           ],
           "depends_on": [
             "P4-T01"
@@ -910,11 +1078,13 @@
             ]
           },
           "verification": [
+            "teacher 가중치가 /mnt/d/backbones의 로컬 파일에서 strict load 되고, 부재 시 LocalAssetError로 실패하는지 확인한다.",
             "super().on_fit_end() 호출과 calibration→threshold 순서를 확인한다.",
             "통계는 train만, 분위수는 valid만 사용해 test 누출이 없는지 확인한다."
           ],
           "completion_criteria": [
-            "calibration이 best 가중치 기준으로 수행되고 threshold가 그 이후 값으로 결정된다."
+            "calibration이 best 가중치 기준으로 수행되고 threshold가 그 이후 값으로 결정된다.",
+            "teacher 가중치 조달에 lightning_model.py의 다운로드 경로가 전혀 사용되지 않는다."
           ],
           "artifacts": [
             "hook 구현",
@@ -977,7 +1147,7 @@
           ],
           "spec_refs": [
             "SPEC §4.5",
-            "SPEC §6"
+            "SPEC §7"
           ],
           "depends_on": [
             "P4-T03"
@@ -1252,7 +1422,7 @@
             "NFR-004"
           ],
           "spec_refs": [
-            "SPEC §6"
+            "SPEC §7"
           ],
           "depends_on": [
             "P6-T01",

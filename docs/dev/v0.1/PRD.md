@@ -31,6 +31,7 @@
 | NFR-004 | 데이터셋 인터페이스가 MVTec 디렉터리 구조에 결합되지 않는다 |
 | NFR-005 | 공통 engine에 모델명·task명 기반 분기를 두지 않는다 |
 | NFR-006 | 인터넷 연결 없이 전체 lifecycle을 실행한다 |
+| NFR-007 | 압축 배포된 저장소를 다른 로컬 환경에서 저장소 파일 수정 없이 실행한다. 머신별 자산 경로는 `configs/local.yaml` 또는 환경변수로 지정하며, 미지정·부재 시 즉시 실패한다 (SPEC §6) |
 
 ## 3. 제약 (CON)
 
@@ -38,7 +39,7 @@
 |---|---|---|
 | CON-001 | `torch_model.py` 등 복사한 모델 코드는 import 경로 외 수정 금지 | 즉시 되돌린다 |
 | CON-002 | Lightning을 의존성 추가·import·호출하지 않는다 | 즉시 제거한다 |
-| CON-003 | 데이터셋은 `/mnt/d/datasets`, 가중치는 `/mnt/d/backbones`에서 읽는다 | config를 수정한다 |
+| CON-003 | config가 가리키는 로컬 자산만 사용한다. 경로는 머신별로 지정 가능하며(SPEC §6) 개발 머신 기본값은 `/mnt/d/datasets`·`/mnt/d/backbones`다 | `configs/local.yaml` 또는 config를 수정한다 |
 | CON-004 | AI 에이전트는 데이터셋·모델·라이브러리를 자동 다운로드·설치하지 않는다 | 사용자에게 CLI 설치를 요청하고 대기한다 |
 | CON-005 | 대상은 image 모델로 한정한다 (video 제외) | 범위에서 제외한다 |
 
@@ -88,6 +89,8 @@
 성능 차이를 모델 구현 차이로 단정하지 않는다. 다음을 먼저 확인한다.
 
 preprocessing · augmentation · optimizer/scheduler 설정 · epoch/batch 조건 · pretrained weight · score normalization · post-processing · threshold 계산 · metric 구현 · evaluation protocol
+
+pretrained weight는 특히 STFPM에서 우선 검토 대상이다. anomalib은 timm `resnet18`의 기본 pretrained를, 이 프로젝트는 `/mnt/d/backbones`의 torchvision 가중치를 쓰므로 학습 레시피가 다르다([SPEC.md](SPEC.md) §4.6).
 
 원인이 무엇이든 **모델 코드는 수정하지 않는다**(CON-001). wrapper 또는 boilerplate에서 해결한다.
 

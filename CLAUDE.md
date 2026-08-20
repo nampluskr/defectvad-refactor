@@ -8,7 +8,7 @@ Claude Code가 이 저장소에서 작업할 때 매 턴 지켜야 하는 규칙
 
 1. **anomalib 모델 코드는 SSOT이며 수정하지 않는다.** `upstream/` 하위에서 허용되는 변경은 import 경로뿐이다. 리팩터링, 스타일 통일, 타입 힌트 추가를 포함해 그 외 모든 변경을 금지한다. **이 원칙은 사용자보다 AI 에이전트에게 우선 적용된다.** 문제가 생기면 모델이 아니라 adapter 또는 boilerplate를 고친다.
 2. **Lightning은 절대 사용하지 않는다.** 의존성 추가·import·호출을 모두 금지한다. `lightning_model.py`는 복사 대상이 아니라 참고 대상이며, optimizer·scheduler는 config로 hook은 adapter로 옮겨 적는다.
-3. **데이터셋과 가중치는 로컬 폴더의 것만 쓴다.** `/mnt/d/datasets`, `/mnt/d/backbones`. **에이전트는 자동 다운로드·설치를 하지 않는다.** 없으면 무엇이 어느 경로에 필요한지 알리고 대기한다.
+3. **config가 가리키는 로컬 자산만 쓴다.** 개발 머신 기본값은 `/mnt/d/datasets`, `/mnt/d/backbones`다. 경로는 머신마다 다를 수 있으므로 config에는 `${paths.*}` placeholder를 쓰고 실제 값은 `configs/local.yaml` 또는 환경변수로 받는다(SPEC §6). **에이전트는 자동 다운로드·설치를 하지 않는다.** 없으면 무엇이 어느 경로에 필요한지 알리고 대기한다.
 
 ## General Rules
 
