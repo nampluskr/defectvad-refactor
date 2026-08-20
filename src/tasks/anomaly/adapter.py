@@ -34,8 +34,11 @@ class AnomalyAdapter(TaskAdapter):
         return smooth_anomaly_map(anomaly_map, self.smooth_sigma)
 
     def train_step(self, model, batch, device):
-        images = batch[0].to(device)
-        return model.train_step(images, batch[1])  # targets are empty dicts, unused
+        # No longer delegates to model.train_step: anomalib upstream torch_model.py has no
+        # such method (PLAN-P5 SS4.1). Each model-specific adapter (StfpmAdapter,
+        # EfficientAdAdapter) overrides this to call the corresponding upstream loss module.
+        raise NotImplementedError(
+            "AnomalyAdapter subclasses must override train_step to call the model's loss.")
 
     def eval_step(self, model, batch, device):
         images = batch[0].to(device)

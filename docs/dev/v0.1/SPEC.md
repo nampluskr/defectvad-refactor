@@ -350,10 +350,12 @@ model:
 
 `core/config.py`에 두 함수를 추가한다. 새 의존성은 도입하지 않는다(omegaconf·python-dotenv 모두 불필요).
 
-- `resolve_paths(config, local_config_path=None)` — 위 우선순위로 `config["paths"]`를 확정하고, 무엇이 어느 출처에서 왔는지 `config["paths"]["_source"]`에 기록한다.
+- `resolve_paths(config, override_args=None, local_config_path=None)` — 위 우선순위로 `config["paths"]`를 확정하고, 무엇이 어느 출처에서 왔는지 `config["paths"]["_source"]`에 기록한다.
 - `interpolate(config)` — merge·override가 끝난 config를 재귀 순회하며 문자열 안의 `${paths.<key>}`를 치환한다. 정의되지 않은 key를 만나면 사용 가능한 key를 나열한 `ConfigError`를 던진다.
 
-확정된 각 root에 `os.path.isdir` 검사를 하고, 없으면 `ConfigError`로 즉시 멈춘다. 메시지에는 어떤 root가 없는지, `configs/local.yaml`에 무엇을 적어야 하는지, 대응 환경변수 이름을 함께 적는다. **개발 머신 기본값으로 조용히 폴백하지 않는다**(CON-004와 같은 기조).
+**P1-T06 구현 중 추가 결정(P1 적대적 검증 A1에서 확인):** `_base.yaml`의 `paths` 블록이 `dataset_root`·`backbone_root`를 함께 선언해도, 개별 config가 `${paths.<key>}`로 실제로 참조하지 않는 키는 확정·검증 대상에서 제외한다(`used_placeholder_keys()`). 처음부터 학습하는 `custom_*` 모델처럼 `weights_path`가 없는 config까지 존재하지도 않는 `backbone_root`를 요구하면 NFR-003(공통 코드가 다른 4개 task를 불필요하게 막지 않아야 함)을 해친다. 선언되었지만 참조되지 않는 키는 `config["paths"]`에도 남기지 않는다.
+
+확정된(=실제로 참조되는) 각 root에 대해 먼저 문자열 타입인지 확인하고(`--set paths.*=null` 등 비문자열 값을 걸러낸다), 그다음 `os.path.isdir` 검사를 한다. 없으면 `ConfigError`로 즉시 멈춘다. 메시지에는 어떤 root가 없는지, `configs/local.yaml`에 무엇을 적어야 하는지, 대응 환경변수 이름을 함께 적는다. **개발 머신 기본값으로 조용히 폴백하지 않는다**(CON-004와 같은 기조) — rank 4로 선택되었더라도 그 사실이 `_source`에 남고 부재 시 동일하게 실패하므로 "조용한" 폴백이 아니다.
 
 파일 단위 검증은 기존 `core/offline.py#load_local_weights`가 `LocalAssetError`로 처리하므로 건드리지 않는다. 새 검사는 root 수준에서만 한다.
 
@@ -368,7 +370,7 @@ config가 만들어지는 경로는 두 곳이며 **둘 다** 치환을 거쳐�
 
 기존 `config.resolved.yaml` 저장은 치환 후 config를 저장하므로, 실제 사용된 절대 경로가 자동으로 run 기록에 남는다.
 
-`cli/commands.py#check_assets`는 `configs/assets.yaml`을 직접 읽으므로 같은 치환을 거치게 하고, `--local-config` 인자를 `cli/parser.py`에 추가한다. 이 명령이 새 머신의 첫 실행 절차가 된다 — zip 해제 → `configs/local.yaml` 작성 → `check-assets`로 누락 자산 확인.
+`cli/commands.py#check_assets`는 `configs/assets.yaml`을 직접 읽으므로 같은 치환을 거치게 하고, `--local-config` 인자를 `cli/parser.py`에 추가한다. `configs/assets.yaml` 자체도 최상위 `paths` 블록(개발 머신 기본값)을 갖는다. **P1 적대적 검증 A1에서 추가:** `--set`도 `check-assets`에 추가해 `apply_overrides` → `resolve_paths` → `interpolate` 순으로 호출한다 — 그렇지 않으면 이 커맨드만 §6.2의 1순위(CLI `--set`)를 쓸 수 없다. 이 명령이 새 머신의 첫 실행 절차가 된다 — zip 해제 → `configs/local.yaml` 작성 → `check-assets`로 누락 자산 확인.
 
 ### 6.5 범위와 등급
 

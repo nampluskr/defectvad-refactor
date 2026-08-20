@@ -5,6 +5,7 @@ from src.core.context import make_worker_init_fn
 from src.core.registry import BUILDERS
 
 BUILDERS.register("adamw")(lambda target, **params: torch.optim.AdamW(target, **params))
+BUILDERS.register("adam")(lambda target, **params: torch.optim.Adam(target, **params))
 BUILDERS.register("sgd")(lambda target, **params: torch.optim.SGD(target, **params))
 
 

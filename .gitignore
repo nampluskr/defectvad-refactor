@@ -13,3 +13,6 @@ checkpoints/
 
 .vscode/
 .idea/
+
+# machine-specific SSOT for dataset/backbone paths (SPEC v0.1 SS6.2); never committed
+configs/local.yaml

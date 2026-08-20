@@ -368,7 +368,7 @@
     {
       "id": "P1",
       "title": "공통 구조 설계",
-      "status": "ready",
+      "status": "done",
       "depends_on": [
         "P0"
       ],
@@ -384,7 +384,7 @@
         {
           "id": "P1-T01",
           "title": "upstream/ 디렉터리 생성 및 원본 복사",
-          "status": "pending",
+          "status": "done",
           "description": "P0-T03에서 확정한 파일을 upstream/ 에 수정 없이 복사한다. import 경로만 이 프로젝트 구조에 맞게 조정한다(원칙 1의 유일한 예외).",
           "prd_refs": [
             "FR-001",
@@ -427,7 +427,7 @@
         {
           "id": "P1-T02",
           "title": "기존 모델 구현 제거",
-          "status": "pending",
+          "status": "done",
           "description": "models/stfpm.py, models/efficientad.py를 삭제하고 models/__init__.py의 해당 import를 제거한다. custom_ae.py와 models/ 디렉터리는 존치한다.",
           "prd_refs": [
             "FR-001"
@@ -472,7 +472,7 @@
         {
           "id": "P1-T03",
           "title": "adam 빌더 추가",
-          "status": "pending",
+          "status": "done",
           "description": "core/builders.py에 adam 빌더를 등록한다. 모델명 분기가 아닌 범용 빌더다.",
           "prd_refs": [
             "FR-010",
@@ -516,7 +516,7 @@
         {
           "id": "P1-T04",
           "title": "공통 AnomalyAdapter에서 model.train_step 위임 제거",
-          "status": "pending",
+          "status": "done",
           "description": "AnomalyAdapter.train_step의 model.train_step 위임을 제거하고, 모델별 adapter가 override하는 구조로 바꾼다. metric·threshold·visualize·on_fit_end의 threshold 계산은 공통에 유지한다.",
           "prd_refs": [
             "NFR-003",
@@ -562,7 +562,7 @@
         {
           "id": "P1-T06",
           "title": "로컬 환경 경로 이식성 도입",
-          "status": "pending",
+          "status": "done",
           "description": "config에 최상위 paths 블록(dataset_root, backbone_root)을 신설하고, 나머지 config의 절대 경로를 ${paths.*} placeholder로 바꾼다. 해석 우선순위는 --set > 환경변수(DATASET_DIR, BACKBONE_DIR) > configs/local.yaml > config 기본값이며, root가 없으면 ConfigError로 즉시 실패한다. 압축 배포된 저장소를 다른 로컬 환경에서 파일 수정 없이 쓰기 위한 작업이다 (SPEC §6). 실행 순서상 P1-T05 완료 판정보다 앞이다.",
           "prd_refs": [
             "FR-008",
@@ -623,7 +623,7 @@
         {
           "id": "P1-T05",
           "title": "P1 완료 판정 — 공통 구조 검증",
-          "status": "pending",
+          "status": "done",
           "description": "MVTec 로딩과 AUROC 산출이 독립적으로 동작하고, 기존 hook만으로 EfficientAD lifecycle을 수용할 수 있는지 판단한다.",
           "prd_refs": [
             "FR-004",
@@ -674,7 +674,7 @@
     {
       "id": "P2",
       "title": "STFPM 통합",
-      "status": "pending",
+      "status": "ready",
       "depends_on": [
         "P1"
       ],

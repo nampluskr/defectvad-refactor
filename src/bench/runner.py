@@ -6,7 +6,9 @@ import torch
 from src.bench.control import enforce_control
 from src.bench.profile import profile_model
 from src.core.builders import build_dataloader, build_optimizer, build_scheduler
-from src.core.config import apply_overrides, deep_merge, load_and_merge_base, validate_config
+from src.core.config import (
+    apply_overrides, deep_merge, interpolate, load_and_merge_base, resolve_paths, validate_config,
+)
 from src.core.context import RunContext
 from src.core.engine import Trainer
 from src.core.logger import MetricsCsvWriter, setup_logger
@@ -52,13 +54,17 @@ def bind_class_names(adapter, dataset):
         adapter.class_names = dataset.classes
 
 
-def resolve_split_configs(bench_path, cli_overrides):
+def resolve_split_configs(bench_path, cli_overrides, local_config_path=None):
     bench = load_yaml(bench_path)
     base_config = load_and_merge_base(bench["base"])
     split_configs = {}
     for split_spec in bench["splits"]:
         merged = deep_merge(base_config, split_spec.get("override", {}))
         merged = apply_overrides(merged, cli_overrides or [])
+        # SPEC SS6.4: this path builds configs without resolve_config(), so the paths ${...}
+        # substitution must be repeated here explicitly.
+        merged = resolve_paths(merged, cli_overrides, local_config_path)
+        merged = interpolate(merged)
         split_configs[split_spec["name"]] = merged
     return bench, split_configs
 

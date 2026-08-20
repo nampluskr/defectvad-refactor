@@ -34,7 +34,7 @@ def main():
 
 def dispatch(args):
     if args.command == "check-assets":
-        check_assets(args.assets)
+        check_assets(args.assets, args.local_config, args.set)
     elif args.command == "config":
         print_resolved_config(args.config_path, args.set)
     elif args.command == "train":

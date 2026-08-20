@@ -8,6 +8,8 @@ def build_parser():
 
     check_assets = subparsers.add_parser("check-assets")
     check_assets.add_argument("--assets", default="configs/assets.yaml")
+    check_assets.add_argument("--local-config", dest="local_config", default=None)
+    check_assets.add_argument("--set", dest="set", action="append", default=[])
 
     config_cmd = subparsers.add_parser("config")
     config_cmd.add_argument("config_path")

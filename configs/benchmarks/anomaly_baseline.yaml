@@ -13,9 +13,9 @@ splits:
     override:
       model:
         name: stfpm_anomaly
-        params: {weights_path: /mnt/d/backbones/resnet18-f37072fd.pth}
+        params: {weights_path: "${paths.backbone_root}/resnet18-f37072fd.pth"}
   - name: efficientad
     override:
       model:
         name: efficientad_anomaly
-        params: {weights_path: /mnt/d/backbones/efficientad_pretrained_weights/pretrained_teacher_small.pth}
+        params: {weights_path: "${paths.backbone_root}/efficientad_pretrained_weights/pretrained_teacher_small.pth"}

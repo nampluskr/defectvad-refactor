@@ -2,6 +2,12 @@ meta:
   task_name: classification
   description: "oxford_pets 37-breed classification baseline"
 
+# SPEC v0.1 SS6.1: dev-machine defaults, overridden per machine via configs/local.yaml or
+# DATASET_DIR/BACKBONE_DIR env vars (SS6.2) -- never edit these two lines for a new machine.
+paths:
+  dataset_root: /mnt/d/datasets
+  backbone_root: /mnt/d/backbones
+
 runtime:
   seed: 42
   device: cuda
@@ -11,7 +17,7 @@ runtime:
 
 data:
   name: oxford_pets_cls
-  root: /mnt/d/datasets/oxford_pets
+  root: ${paths.dataset_root}/oxford_pets
   params: {}
   image_size: [224, 224]
   batch_size: 32

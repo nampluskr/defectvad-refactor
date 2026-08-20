@@ -1,0 +1,10 @@
+# Machine-specific path overrides (SPEC v0.1 SS6). Copy this file to configs/local.yaml and
+# fill in the two paths for this machine; configs/local.yaml itself is gitignored and never
+# shipped in a zip, so it is the SSOT for a machine's dataset/backbone locations (SS6.2 rank 3).
+#
+# Resolution priority (highest wins): --set paths.<key>=... > DATASET_DIR/BACKBONE_DIR env vars
+# > configs/local.yaml (this file, copied and edited) > the paths block in each task's _base.yaml
+# (dev-machine default).
+paths:
+  dataset_root: /path/to/datasets
+  backbone_root: /path/to/backbones

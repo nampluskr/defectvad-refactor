@@ -11,7 +11,7 @@ from src.bench.leaderboard import build_leaderboard as write_leaderboard
 from src.bench.runner import run_benchmark as execute_benchmark
 from src.core.builders import build_dataloader, build_optimizer, build_scheduler
 from src.core.checkpoint import load_checkpoint
-from src.core.config import resolve_config, validate_config
+from src.core.config import apply_overrides, interpolate, resolve_config, resolve_paths, validate_config
 from src.core.context import RunContext
 from src.core.engine import Trainer
 from src.core.logger import MetricsCsvWriter, setup_logger
@@ -21,8 +21,13 @@ from src.core.registry import ADAPTERS, DATASETS, LOSSES, METRICS, MODELS, TRANS
 from src.utils.io import load_json, load_yaml, save_json, save_yaml
 
 
-def check_assets(assets_path):
+def check_assets(assets_path, local_config_path=None, override_args=None):
     assets = load_yaml(assets_path)
+    # SPEC SS6.4: this reads configs/assets.yaml directly, bypassing resolve_config(), so the
+    # same --set / paths resolution / ${...} substitution is repeated here explicitly.
+    assets = apply_overrides(assets, override_args)
+    assets = resolve_paths(assets, override_args, local_config_path)
+    assets = interpolate(assets)
     rows = []
     all_ok = True
 

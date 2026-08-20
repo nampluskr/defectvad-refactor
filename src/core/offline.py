@@ -72,9 +72,13 @@ def guarded_getaddrinfo(host, *args, **kwargs):
 
 def set_offline_env_vars():
     """Pure os.environ writes with no other imports, so this is safe to call before any
-    third-party library (torch, torchvision, ultralytics, huggingface_hub) is imported."""
-    os.environ["TORCH_HOME"] = os.environ.get("TORCH_HOME", "/mnt/d/backbones/.torch_home")
-    os.environ["HF_HOME"] = os.environ.get("HF_HOME", "/mnt/d/backbones/.hf_home")
+    third-party library (torch, torchvision, ultralytics, huggingface_hub) is imported. Runs
+    before config resolution (SS __main__.py), so it cannot read configs/local.yaml or
+    config['paths'] (SPEC SS6) -- only BACKBONE_DIR (SS6.2 rank-2 override) and a repo-relative
+    fallback are available this early, no machine-specific absolute path default."""
+    backbone_root = os.environ.get("BACKBONE_DIR", ".cache")
+    os.environ["TORCH_HOME"] = os.environ.get("TORCH_HOME", os.path.join(backbone_root, ".torch_home"))
+    os.environ["HF_HOME"] = os.environ.get("HF_HOME", os.path.join(backbone_root, ".hf_home"))
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["YOLO_OFFLINE"] = "1"  # purity-allow: PLAN-P1 SS9.1 offline env var, not model branching
 

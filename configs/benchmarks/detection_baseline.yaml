@@ -25,7 +25,7 @@ splits:
         name: fasterrcnn_r50_fpn_det
         params:
           num_classes: 3
-          weights_path: /mnt/d/backbones/fasterrcnn_resnet50_fpn_coco-258fb6c6.pth
+          weights_path: ${paths.backbone_root}/fasterrcnn_resnet50_fpn_coco-258fb6c6.pth
           score_thresh: 0.05
           nms_iou: 0.5
           max_det: 100
@@ -35,7 +35,7 @@ splits:
         name: yolov8n_det
         params:
           num_classes: 3
-          weights_path: /mnt/d/backbones/yolov8n.pt
+          weights_path: ${paths.backbone_root}/yolov8n.pt
           score_thresh: 0.05
           nms_iou: 0.5
           max_det: 100

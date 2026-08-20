@@ -13,9 +13,9 @@ splits:
     override:
       model:
         name: deeplabv3_resnet50_seg
-        params: {num_classes: 3, backbone_name: resnet50, weights_path: /mnt/d/backbones/deeplabv3_resnet50_coco-cd0a2569.pth}
+        params: {num_classes: 3, backbone_name: resnet50, weights_path: "${paths.backbone_root}/deeplabv3_resnet50_coco-cd0a2569.pth"}
   - name: fcn_resnet50
     override:
       model:
         name: fcn_resnet50_seg
-        params: {num_classes: 3, backbone_name: resnet50, weights_path: /mnt/d/backbones/fcn_resnet50_coco-1167a1af.pth}
+        params: {num_classes: 3, backbone_name: resnet50, weights_path: "${paths.backbone_root}/fcn_resnet50_coco-1167a1af.pth"}

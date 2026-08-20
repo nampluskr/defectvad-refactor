@@ -1,5 +1,6 @@
 import copy
 import os
+import re
 
 import torch
 import yaml
@@ -11,7 +12,21 @@ TOP_LEVEL_KEYS = {
     "meta", "runtime", "data", "model", "loss", "metrics", "adapter", "optim", "train", "output",
 }
 
+# 'paths' is allowed but not required: only tasks whose _base.yaml declares a paths block (SPEC
+# SS6.1) use it -- a task with no external assets needs no dataset_root/backbone_root (NFR-003).
+ALLOWED_TOP_LEVEL_KEYS = TOP_LEVEL_KEYS | {"paths"}
+
 MAX_INHERIT_DEPTH = 3
+
+DEFAULT_LOCAL_CONFIG_PATH = "configs/local.yaml"
+
+# rank 2 (SPEC SS6.2): env var name for each paths.<key>
+PATH_ENV_VARS = {
+    "dataset_root": "DATASET_DIR",
+    "backbone_root": "BACKBONE_DIR",
+}
+
+PLACEHOLDER_PATTERN = re.compile(r"\$\{paths\.([a-zA-Z0-9_]+)\}")
 
 
 def deep_merge(base, override):
@@ -109,9 +124,126 @@ def apply_overrides(config, override_args):
     return config
 
 
-def resolve_config(path, override_args=None):
+def cli_override_keys(override_args, prefix):
+    """Dotted keys under `prefix.` (e.g. 'paths') present in --set arguments."""
+    keys = set()
+    for arg in override_args or []:
+        key, _ = parse_set_arg(arg)
+        head, _, rest = key.partition(".")
+        if head == prefix and rest:
+            keys.add(rest)
+    return keys
+
+
+def used_placeholder_keys(config):
+    """paths.<key> names actually referenced by ${paths.<key>} somewhere in config, excluding
+    the 'paths' block itself (which only declares values, never references them)."""
+    keys = set()
+
+    def scan(node, top_level_key=None):
+        if top_level_key == "paths":
+            return
+        if isinstance(node, str):
+            keys.update(PLACEHOLDER_PATTERN.findall(node))
+        elif isinstance(node, dict):
+            for k, v in node.items():
+                scan(v, k)
+        elif isinstance(node, list):
+            for v in node:
+                scan(v)
+
+    scan(config)
+    return keys
+
+
+def resolve_paths(config, override_args=None, local_config_path=None):
+    """Resolve config['paths'] using the SPEC SS6.2 priority (highest wins):
+    1. CLI --set paths.<key>=... (already merged into config by apply_overrides)
+    2. env vars DATASET_DIR / BACKBONE_DIR
+    3. configs/local.yaml (machine-specific SSOT, gitignored)
+    4. the paths block already present in config (dev-machine default from _base.yaml)
+    Only keys actually referenced by a ${paths.<key>} placeholder elsewhere in this config are
+    required to exist (NFR-003) -- a task's paths block may declare a root that a from-scratch
+    model config never uses. Records which source won for each key in
+    config['paths']['_source'] (NFR-002)."""
+    base_paths = {k: v for k, v in config.get("paths", {}).items() if k != "_source"}
+    required_keys = used_placeholder_keys(config) & set(base_paths)
+    if not required_keys:
+        # No paths.* placeholder is actually referenced in this config (e.g. a from-scratch
+        # model, or a task with no external assets at all) -- nothing to resolve or validate.
+        config = copy.deepcopy(config)
+        config.pop("paths", None)
+        return config
+
+    local_config_path = local_config_path or DEFAULT_LOCAL_CONFIG_PATH
+    cli_keys = cli_override_keys(override_args, "paths")
+
+    local_paths = {}
+    if os.path.isfile(local_config_path):
+        local_paths = (load_raw_yaml(local_config_path) or {}).get("paths", {}) or {}
+
+    resolved = {}
+    source = {}
+    for key in required_keys:
+        default_value = base_paths[key]
+        env_name = PATH_ENV_VARS.get(key)
+        if key in cli_keys:
+            value, origin = default_value, "cli"
+        elif env_name and env_name in os.environ:
+            value, origin = os.environ[env_name], "env"
+        elif key in local_paths:
+            value, origin = local_paths[key], "local_yaml"
+        else:
+            value, origin = default_value, "config_default"
+        require(
+            isinstance(value, str),
+            f"paths.{key} must be a string path, got {value!r} (source: {origin})."
+        )
+        require(
+            os.path.isdir(value),
+            f"paths.{key} does not exist: {value} (source: {origin}). "
+            f"Fix it via --set paths.{key}=<path>, env var {env_name}=<path>, or "
+            f"'{local_config_path}' (paths.{key}: <path>)."
+        )
+        resolved[key] = value
+        source[key] = origin
+
+    config = copy.deepcopy(config)
+    config["paths"] = resolved
+    config["paths"]["_source"] = source
+    return config
+
+
+def interpolate(config):
+    """Substitute ${paths.<key>} placeholders in every string value, using config['paths']
+    (already resolved by resolve_paths). Must run after --set is applied (SPEC SS6.4)."""
+    paths = {k: v for k, v in config.get("paths", {}).items() if k != "_source"}
+
+    def substitute(value):
+        if isinstance(value, str):
+            def replace(match):
+                key = match.group(1)
+                if key not in paths:
+                    raise ConfigError(
+                        f"Unknown path placeholder '${{paths.{key}}}'. "
+                        f"Available paths keys: {sorted(paths)}"
+                    )
+                return str(paths[key])
+            return PLACEHOLDER_PATTERN.sub(replace, value)
+        if isinstance(value, dict):
+            return {k: substitute(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [substitute(v) for v in value]
+        return value
+
+    return substitute(config)
+
+
+def resolve_config(path, override_args=None, local_config_path=None):
     config = load_and_merge_base(path)
     config = apply_overrides(config, override_args)
+    config = resolve_paths(config, override_args, local_config_path)
+    config = interpolate(config)
     return config
 
 
@@ -124,7 +256,7 @@ def validate_config(config, check_paths=True, check_registry=True, check_cuda=Tr
     # 1. top-level keys
     keys = set(config.keys())
     missing = TOP_LEVEL_KEYS - keys
-    unknown = keys - TOP_LEVEL_KEYS
+    unknown = keys - ALLOWED_TOP_LEVEL_KEYS
     require(not missing, f"Config is missing required top-level keys: {sorted(missing)}")
     require(not unknown, f"Config has undefined top-level keys: {sorted(unknown)}")
 
