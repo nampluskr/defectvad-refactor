@@ -846,7 +846,7 @@
     {
       "id": "P3",
       "title": "STFPM 성능 검증",
-      "status": "pending",
+      "status": "done",
       "depends_on": [
         "P2"
       ],
@@ -859,7 +859,7 @@
         {
           "id": "P3-T01",
           "title": "MVTec 대표 3개 카테고리 선정",
-          "status": "pending",
+          "status": "done",
           "description": "성능 판정에 쓸 3개 카테고리를 선정하고 근거를 기록한다.",
           "prd_refs": [
             "NFR-001"
@@ -899,7 +899,7 @@
         {
           "id": "P3-T02",
           "title": "STFPM 실행 명령 제시 및 사용자 결과 수령",
-          "status": "pending",
+          "status": "done",
           "description": "PRD §5 절차에 따라 사용자가 터미널에서 실행할 명령어를 제시하고, 결과를 피드백받는다. 에이전트는 학습을 임의로 실행하지 않는다.",
           "prd_refs": [
             "NFR-001",
@@ -942,7 +942,7 @@
         {
           "id": "P3-T03",
           "title": "차이 발생 시 원인 검토 및 수정",
-          "status": "pending",
+          "status": "done",
           "description": "결과가 reference와 다르면 PRD §5.4의 검토 항목을 순서대로 확인하고, 모델 코드가 아닌 adapter 또는 boilerplate에서 해결한다.",
           "prd_refs": [
             "NFR-001",
