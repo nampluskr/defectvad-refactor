@@ -3,3 +3,29 @@ model:
   name: efficientad_anomaly
   params:
     weights_path: ${paths.backbone_root}/efficientad_pretrained_weights/pretrained_teacher_small.pth
+
+adapter:
+  name: efficientad
+  params:
+    smooth_sigma: 4.0
+    auxiliary_root: ${paths.dataset_root}/imagenette2/train
+    auxiliary_seed: 42  # NOTE: keep in sync with runtime.seed below (no derived-value syntax in v0.1, SPEC SS4.5)
+
+data:
+  batch_size: 1  # SPEC SS4.5: EfficientAD requires train batch size == 1
+  transform:
+    # normalize: false -- upstream torch_model.py normalizes internally (SPEC SS4.5); the shared
+    # anomaly_default transform would double-normalize otherwise.
+    train: {name: anomaly_default, params: {normalize: false}}
+    eval:  {name: anomaly_default, params: {normalize: false}}
+
+# SPEC SS4.5: Adam lr 1e-4, weight_decay 1e-5. StepLR step_size is int(0.95 * train.epochs),
+# hardcoded here (v0.1 has no config-level derived-value syntax) -- MUST be kept paired with
+# train.epochs below. train.epochs=5 -> int(0.95 * 5) = 4. P4-T04 revisits this pairing once the
+# real training budget is decided with the user.
+optim:
+  optimizer: {name: adam, params: {lr: 0.0001, weight_decay: 0.00001}}
+  scheduler: {name: step, params: {step_size: 4, gamma: 0.1}}  # paired with train.epochs: 5 below
+
+train:
+  epochs: 5  # paired with optim.scheduler.params.step_size: 4 above -- change both together

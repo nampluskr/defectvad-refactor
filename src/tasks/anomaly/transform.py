@@ -51,11 +51,14 @@ class AnomalyTransform:
 
 
 @TRANSFORMS.register("anomaly_default")
-def build_anomaly_transform(image_size, train=True, **params):
+def build_anomaly_transform(image_size, train=True, normalize=True, **params):
     # image_size is fixed [256, 256] (PLAN-P5 SS3.5) so anomaly_map and mask share resolution.
-    compose = v2.Compose([
+    # normalize=False for EfficientAD (SPEC SS4.5): its upstream torch_model.py applies
+    # imagenet_norm_batch internally, so normalizing here too would double-normalize.
+    steps = [
         v2.Resize(image_size, antialias=True),
         v2.ToDtype({tv_tensors.Image: torch.float32, tv_tensors.Mask: torch.int64}, scale=True),
-        v2.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-    ])
-    return AnomalyTransform(compose)
+    ]
+    if normalize:
+        steps.append(v2.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD))
+    return AnomalyTransform(v2.Compose(steps))

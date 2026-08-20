@@ -999,7 +999,7 @@
         {
           "id": "P4-T01",
           "title": "EfficientAdAdapter — auxiliary loader 조달",
-          "status": "pending",
+          "status": "done",
           "description": "on_fit_start에서 config의 auxiliary 경로를 읽어 build_dataloader로 ImageNette loader를 생성하고 adapter에 보관한다. train_step에서 배치를 순환 소비한다. core/engine.py 시그니처는 바꾸지 않는다.",
           "prd_refs": [
             "FR-011",
@@ -1044,7 +1044,7 @@
         {
           "id": "P4-T02",
           "title": "EfficientAdAdapter — teacher 가중치 로드, 통계와 분위수 calibration",
-          "status": "pending",
+          "status": "done",
           "description": "on_fit_start에서 로컬 pretrained teacher 가중치를 strict load 하고(다운로드 없음, SPEC §4.6) teacher 채널 통계를 계산한다. on_fit_end에서 90%/99.5% 분위수를 계산한다. on_fit_end는 super()를 호출하며 분위수 calibration이 threshold 계산보다 먼저 끝나야 한다.",
           "prd_refs": [
             "CON-003",
@@ -1094,7 +1094,7 @@
         {
           "id": "P4-T03",
           "title": "EfficientAD config 작성",
-          "status": "pending",
+          "status": "done",
           "description": "Adam(lr 1e-4, weight_decay 1e-5), StepLR(step_size는 train.epochs의 95% 지점을 직접 기입하고 주석으로 짝을 명시), batch size 1, normalization 미사용, teacher·auxiliary 경로를 지정한다.",
           "prd_refs": [
             "FR-008",

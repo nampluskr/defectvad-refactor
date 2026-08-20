@@ -11,6 +11,9 @@ datasets:
   mvtec_bottle:
     root: ${paths.dataset_root}/mvtec/bottle
     require: [train/good, test, ground_truth]
+  imagenette2:
+    root: ${paths.dataset_root}/imagenette2
+    require: [train]
 
 weights:
   resnet50: ${paths.backbone_root}/resnet50-0676ba61.pth
