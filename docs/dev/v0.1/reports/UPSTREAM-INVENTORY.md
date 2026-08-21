@@ -1,6 +1,6 @@
 # UPSTREAM-INVENTORY — 복사 원본 출처·라이선스 인벤토리
 
-상위 문서: [SPEC.md](SPEC.md) §3 · 절차: [MODEL-ADD.md](MODEL-ADD.md)
+상위 문서: [SPEC.md](../SPEC.md) §3 · 절차: [MODEL-ADD.md](MODEL-ADD.md)
 
 P6-T02 산출물이다. `src/tasks/anomaly/upstream/` 하위 전 파일에 대해 anomalib 원본 경로, commit, 라이선스, 허용된 변경, 이를 소비하는 adapter와 lifecycle hook, 필요한 로컬 자산을 한 표로 연결한다. v0.3·v0.4에서 모델을 늘릴 때 이 표에 행을 추가한다.
 

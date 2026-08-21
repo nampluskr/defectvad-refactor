@@ -1369,7 +1369,7 @@
             "모델 추가 절차가 문서화된다."
           ],
           "artifacts": [
-            "docs/dev/v0.1/MODEL-ADD.md"
+            "docs/dev/v0.1/reports/MODEL-ADD.md"
           ]
         },
         {
@@ -1409,7 +1409,7 @@
             "v0.3·v0.4 확장 시 재사용 가능한 인벤토리가 존재한다."
           ],
           "artifacts": [
-            "docs/dev/v0.1/UPSTREAM-INVENTORY.md"
+            "docs/dev/v0.1/reports/UPSTREAM-INVENTORY.md"
           ]
         },
         {
@@ -1451,7 +1451,7 @@
             "v0.2 진입 가능 여부가 판정된다."
           ],
           "artifacts": [
-            "docs/dev/v0.1/RETROSPECTIVE.md"
+            "docs/dev/v0.1/reports/RETROSPECTIVE.md"
           ]
         }
       ]

@@ -1,6 +1,6 @@
 # RETROSPECTIVE — v0.1 구조 회고 및 v0.2 진입 판단
 
-상위 문서: [PLAN.md](PLAN.md) §4 · [SPEC.md](SPEC.md) §7 · 근거: [AC-verification.md](AC-verification.md)
+상위 문서: [PLAN.md](../PLAN.md) §4 · [SPEC.md](../SPEC.md) §7 · 근거: [AC-verification.md](../AC-verification.md)
 
 P6-T03 산출물이다. v0.1에서 확립된 추상화가 v0.2(데이터셋 확장)를 **재설계 없이** 수용하는지 검토하고, SPEC §7의 미결정 항목을 해소하거나 이월한다. PLAN §2의 기준에 따라 "확장 과정에서 공통 구조를 다시 설계해야 한다면 v0.1의 추상화가 부족했다는 신호"로 본다.
 

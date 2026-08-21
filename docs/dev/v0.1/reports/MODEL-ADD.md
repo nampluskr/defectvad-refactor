@@ -1,8 +1,8 @@
 # MODEL-ADD — anomalib 모델 추가 절차
 
-상위 문서: [BRIEF.md](BRIEF.md) · [PRD.md](PRD.md) · [SPEC.md](SPEC.md) · [PLAN.md](PLAN.md)
+상위 문서: [BRIEF.md](../BRIEF.md) · [PRD.md](../PRD.md) · [SPEC.md](../SPEC.md) · [PLAN.md](../PLAN.md)
 
-P6-T01 산출물이다. v0.1에서 STFPM·EfficientAD 두 모델을 통합하며 확립된 구조를 기준으로, 세 번째 모델을 추가하는 절차를 이 문서만 보고 수행할 수 있도록 정리한다. [BRIEF.md](BRIEF.md) "공통 절차" 6단계를 실제 경험으로 보정한 결과이며, 충돌 시 이 문서가 우선한다.
+P6-T01 산출물이다. v0.1에서 STFPM·EfficientAD 두 모델을 통합하며 확립된 구조를 기준으로, 세 번째 모델을 추가하는 절차를 이 문서만 보고 수행할 수 있도록 정리한다. [BRIEF.md](../BRIEF.md) "공통 절차" 6단계를 실제 경험으로 보정한 결과이며, 충돌 시 이 문서가 우선한다.
 
 ## 1. 전제
 
