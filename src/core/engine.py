@@ -32,6 +32,11 @@ class Trainer:
             self._train_epoch(model, adapter, train_loader, optimizer, scaler, ctx, epoch)
             if scheduler is not None:
                 scheduler.step()
+            # Per-epoch calibration point (Codex A5 Critical): an adapter whose score definition
+            # depends on calibration constants must refresh them against the current weights
+            # *before* this epoch's validation, or the metric this loop selects `best.pth` from
+            # is not the metric the final evaluation reports. Default no-op for every task.
+            adapter.on_validation_start(model, loaders, ctx.device)
             valid_results = self.evaluate(model, adapter, valid_loader, ctx, epoch=epoch, split="valid")
             adapter.on_epoch_end(model, epoch, valid_results)
 

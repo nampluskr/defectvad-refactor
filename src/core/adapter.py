@@ -54,6 +54,17 @@ class TaskAdapter(ABC):
     def on_epoch_start(self, model, epoch):
         pass
 
+    def on_validation_start(self, model, loaders, device):
+        """Called inside the fit loop immediately before each validation pass, after the epoch's
+        training is done. Default no-op. A task whose scoring depends on calibration constants
+        that must track the current weights (rather than being decided once at the end of
+        training) recalibrates here, so that every epoch's validation metric -- and therefore the
+        best-checkpoint decision made from it -- is computed with the same score definition the
+        final evaluation uses. Only receives the loaders the engine already holds ("train",
+        "valid"); the standalone evaluate/predict paths never call this, since they consume
+        calibration constants restored from the checkpoint."""
+        pass
+
     def on_epoch_end(self, model, epoch, results):
         pass
 

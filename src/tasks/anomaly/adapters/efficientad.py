@@ -90,15 +90,51 @@ class EfficientAdAdapter(AnomalyAdapter):
             model.mean_std.update(mean_std)
             _freeze(model.mean_std)
 
+    def on_validation_start(self, model, loaders, device):
+        # Codex A5 Critical: anomalib's lightning_model.py recalibrates the quantiles in
+        # on_validation_start, i.e. immediately before *every* validation pass -- not once at the
+        # end of training. torch_model.py#compute_maps only normalizes when is_set(self.quantiles)
+        # holds, so calibrating only in on_fit_end left every epoch's validation scoring
+        # amax(0.5*raw_map_st + 0.5*raw_map_stae): two differently-scaled quantities summed
+        # unnormalized. That is not a monotone transform of the calibrated score, so per-epoch
+        # image_auroc -- and the best.pth selection core/engine.py drives from it -- ranked images
+        # by a different score definition than the final evaluation uses (SPEC SS4.5 anomalib
+        # equivalence, PRD SS5.4 score normalization). Pixel AUROC masked this: the smoothed map's
+        # spatial ranking survives the mis-scaling, while the image score (a single amax over the
+        # map) does not.
+        self._calibrate_quantiles(model, loaders["valid"], device)
+
     def on_fit_end(self, model, loaders, device):
-        # SPEC SS4.3 on_fit_end order constraint: quantile calibration must finish *before*
+        # SPEC SS4.3 on_fit_end order constraint: the model must be calibrated *before*
         # super().on_fit_end() runs compute_thresholds -- forward() uses self.quantiles to scale
         # the anomaly map, so a threshold computed against un-calibrated scores does not match
         # the calibrated scores evaluate/predict will see later.
-        quantiles = self._map_norm_quantiles(model, loaders["valid"], device)
+        #
+        # Codex A5 re-review Critical: do NOT recalibrate unconditionally here. quantiles are
+        # nn.Parameters, so they travel inside best.pth's model_state -- core/engine.py reloads
+        # that checkpoint immediately before this hook, restoring the exact quantiles that
+        # produced the image_auroc which selected it. Recalibrating would replace them with a
+        # fresh draw (reduce_tensor_elems samples via torch.randperm once a map set exceeds 2**24
+        # elements), so the persisted model would score by a different definition than the metric
+        # that chose it. Calibrate only when nothing has calibrated yet -- train.epochs=0, or any
+        # run where the in-loop on_validation_start never fired -- since compute_thresholds below
+        # must not see an uncalibrated model.
+        if not model.is_set(model.quantiles):
+            self._calibrate_quantiles(model, loaders["valid"], device)
+        super().on_fit_end(model, loaders, device)
+
+    def _calibrate_quantiles(self, model, valid_loader, device):
+        # Codex A5 re-review Minor: reduce_tensor_elems draws from the global RNG on the map's
+        # device, so a calibration pass would otherwise shift the next epoch's training randomness
+        # (autoencoder dropout, sampler order) by an amount that depends on how many normal valid
+        # images this category happens to have. Forking the RNG keeps validation-time work off the
+        # training stream, so a fixed seed reproduces the same run regardless of valid-split size
+        # (AC-009). upstream/ is untouched -- the isolation lives at the call site (CON-001).
+        devices = [device] if getattr(device, "type", None) == "cuda" else []
+        with torch.random.fork_rng(devices=devices):
+            quantiles = self._map_norm_quantiles(model, valid_loader, device)
         model.quantiles.update(quantiles)
         _freeze(model.quantiles)
-        super().on_fit_end(model, loaders, device)
 
     def _build_auxiliary_loader(self, image_size, device):
         height, width = image_size
@@ -153,6 +189,16 @@ class EfficientAdAdapter(AnomalyAdapter):
         if was_training:
             model.train()
 
+        # Codex A5 Minor: without this the degenerate split reaches torch.cat([]) and raises an
+        # opaque "expected a non-empty list of Tensors". The quantiles scale every anomaly map
+        # from here on, so an unusable calibration set must fail loudly rather than silently
+        # leaving the model uncalibrated (SPEC SS4.3 calibration contract).
+        if not maps_st:
+            raise LocalAssetError(
+                "EfficientAD quantile calibration needs normal (label == 0) samples in the valid "
+                "split, but found none. Check data.split.path."
+            )
+
         qa_st, qb_st = self._quantiles_of_maps(maps_st, device)
         qa_ae, qb_ae = self._quantiles_of_maps(maps_ae, device)
         return {"qa_st": qa_st, "qa_ae": qa_ae, "qb_st": qb_st, "qb_ae": qb_ae}
@@ -161,6 +207,14 @@ class EfficientAdAdapter(AnomalyAdapter):
         maps_flat = reduce_tensor_elems(torch.cat(maps))
         qa = torch.quantile(maps_flat, q=0.9).to(device)
         qb = torch.quantile(maps_flat, q=0.995).to(device)
+        # torch_model.py#compute_maps divides by (qb - qa); a collapsed map would make every
+        # downstream score non-finite, which reads as a silent metric collapse rather than a fault
+        # (Codex A5 Minor). Upstream is not modified -- the check lives here (CON-001).
+        if not bool(torch.isfinite(qa)) or not bool(torch.isfinite(qb)) or float(qb - qa) <= 0.0:
+            raise LocalAssetError(
+                f"EfficientAD quantile calibration produced a degenerate range "
+                f"(q0.9={float(qa)}, q0.995={float(qb)}); anomaly maps carry no usable spread."
+            )
         return qa, qb
 
 

@@ -1198,7 +1198,7 @@
         {
           "id": "P5-T01",
           "title": "EfficientAD 실행 명령 제시 및 사용자 결과 수령",
-          "status": "pending",
+          "status": "done",
           "description": "PRD §5 절차에 따라 3개 카테고리 실행 명령어를 제시하고 결과를 피드백받는다.",
           "prd_refs": [
             "NFR-001"
@@ -1239,7 +1239,7 @@
         {
           "id": "P5-T02",
           "title": "차이 발생 시 원인 검토 및 수정",
-          "status": "pending",
+          "status": "done",
           "description": "PRD §5.4 항목을 검토해 adapter 또는 boilerplate에서 해결한다.",
           "prd_refs": [
             "NFR-001",

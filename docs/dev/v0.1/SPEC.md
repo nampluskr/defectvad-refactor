@@ -149,8 +149,17 @@ anomalib `torch_model.py`는 eval 모드에서 dict가 아니라 `InferenceBatch
 AnomalyAdapter                 # 기존: metric, threshold, smooth, visualize
 ├── StfpmAdapter               # train_step에서 upstream loss 호출
 └── EfficientAdAdapter         # + on_fit_start: teacher 통계, auxiliary loader
-                               # + on_fit_end: 분위수 calibration
+                               # + on_validation_start: 분위수 calibration (매 epoch)
+                               # + on_fit_end: 미보정 시에만 calibration, 그 후 threshold
 ```
+
+#### `on_validation_start` — 매 epoch calibration
+
+`TaskAdapter`는 task-agnostic hook `on_validation_start(model, loaders, device)`를 제공한다. 기본은 no-op이며, `core/engine.py#Trainer.fit`이 루프 안에서 **각 epoch의 validation 직전**에 호출한다. 나머지 4개 task와 `StfpmAdapter`는 기본 no-op을 그대로 상속한다(NFR-005).
+
+`EfficientAdAdapter`는 이 hook에서 분위수를 재계산한다. anomalib `lightning_model.py`가 `on_validation_start`에서 하는 것과 같은 시점이다.
+
+이 hook 없이 `on_fit_end`에서만 calibration하면, `torch_model.py#compute_maps`가 `is_set(self.quantiles)`일 때만 정규화하므로 학습 중 모든 epoch의 validation이 `amax(0.5 * raw_map_st + 0.5 * raw_map_stae)`로 채점된다. 스케일이 다른 두 map을 정규화 없이 합산한 값이며, 보정 후 score의 단조 변환이 아니다. 결과적으로 `core/engine.py`가 그 metric으로 고르는 `best.pth`가 최종 평가와 다른 score 정의로 선택된다. pixel AUROC는 map의 공간적 순위가 유지되어 이 오류를 가리지만, image score는 map 전체의 단일 `amax`이므로 그대로 드러난다.
 
 #### `on_fit_end` 순서 제약
 
@@ -159,9 +168,11 @@ AnomalyAdapter                 # 기존: metric, threshold, smooth, visualize
 1. 모델의 `on_fit_end` 호출 (모델별 calibration)
 2. `compute_thresholds(model, loaders["valid"], device, smooth_sigma)` — valid 전용 threshold 결정
 
-`EfficientAdAdapter`가 `on_fit_end`를 override할 때 **반드시 `super().on_fit_end()`를 호출**하고, 분위수 calibration을 threshold 계산보다 **먼저** 끝내야 한다. 분위수는 `forward`가 두 anomaly map을 합성하는 스케일을 바꾸므로, calibration 전에 계산한 threshold는 calibration 후의 score와 비교 대상이 아니다.
+`EfficientAdAdapter`가 `on_fit_end`를 override할 때 **반드시 `super().on_fit_end()`를 호출**하고, 모델이 보정된 상태인 것을 threshold 계산보다 **먼저** 보장해야 한다. 분위수는 `forward`가 두 anomaly map을 합성하는 스케일을 바꾸므로, calibration 전에 계산한 threshold는 calibration 후의 score와 비교 대상이 아니다.
 
-`core/engine.py`는 `on_fit_end` 직전에 best checkpoint 가중치를 다시 로드한다. calibration이 best 가중치 기준으로 수행되도록 하기 위한 것이므로, 이 순서에 의존하는 hook은 `on_epoch_end`가 아니라 `on_fit_end`에 둔다.
+`core/engine.py`는 `on_fit_end` 직전에 best checkpoint 가중치를 다시 로드한다. 분위수는 `nn.Parameter`이므로 `model_state`에 함께 저장·복원된다 — 즉 재로드 시점에 **best epoch의 가중치와 그 가중치로 계산된 분위수가 짝을 이뤄 복원된다**. 따라서 `on_fit_end`는 분위수를 무조건 재계산하지 않고 `is_set(model.quantiles)`가 거짓일 때만 계산한다. 무조건 재계산하면 `reduce_tensor_elems`가 2^24 원소를 넘는 map 집합에서 `torch.randperm`으로 새로 표본을 뽑아, 저장되는 모델이 그것을 선택한 metric과 다른 score 정의를 갖게 된다.
+
+calibration은 `torch.random.fork_rng`로 감싼다. `reduce_tensor_elems`가 전역 RNG를 소비하므로, 감싸지 않으면 valid split의 정상 이미지 수가 다음 epoch의 학습 randomness를 바꾼다(AC-009).
 
 ### 4.4 STFPM
 
