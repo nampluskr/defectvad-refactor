@@ -1321,7 +1321,7 @@
     {
       "id": "P6",
       "title": "구조 정리 및 문서화",
-      "status": "pending",
+      "status": "done",
       "depends_on": [
         "P5"
       ],
@@ -1334,7 +1334,7 @@
         {
           "id": "P6-T01",
           "title": "모델 추가 절차 문서화",
-          "status": "pending",
+          "status": "done",
           "description": "v0.1에서 확립된 구조를 기준으로 새 모델 추가 절차를 반복 가능한 형태로 문서화한다. BRIEF의 공통 절차 6단계를 실제 경험으로 보정한다.",
           "prd_refs": [
             "NFR-003"
@@ -1369,13 +1369,13 @@
             "모델 추가 절차가 문서화된다."
           ],
           "artifacts": [
-            "모델 추가 가이드"
+            "docs/dev/v0.1/MODEL-ADD.md"
           ]
         },
         {
           "id": "P6-T02",
           "title": "upstream 출처·라이선스 인벤토리 정리",
-          "status": "pending",
+          "status": "done",
           "description": "복사한 모든 파일의 anomalib commit, 라이선스, 로컬 자산, adapter, lifecycle hook을 연결한 인벤토리를 작성한다.",
           "prd_refs": [
             "FR-001",
@@ -1409,13 +1409,13 @@
             "v0.3·v0.4 확장 시 재사용 가능한 인벤토리가 존재한다."
           ],
           "artifacts": [
-            "upstream 인벤토리"
+            "docs/dev/v0.1/UPSTREAM-INVENTORY.md"
           ]
         },
         {
           "id": "P6-T03",
           "title": "v0.1 구조 회고 및 v0.2 진입 판단",
-          "status": "pending",
+          "status": "done",
           "description": "확립된 추상화가 데이터셋 확장(v0.2)을 재설계 없이 수용하는지 검토한다. 재설계가 필요하면 v0.1 추상화 부족 신호로 기록한다.",
           "prd_refs": [
             "NFR-003",
@@ -1451,7 +1451,7 @@
             "v0.2 진입 가능 여부가 판정된다."
           ],
           "artifacts": [
-            "회고 기록"
+            "docs/dev/v0.1/RETROSPECTIVE.md"
           ]
         }
       ]

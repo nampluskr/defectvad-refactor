@@ -407,13 +407,15 @@ config가 만들어지는 경로는 두 곳이며 **둘 다** 치환을 거쳐�
 |---|---|
 | ~~anomalib 대상 commit 고정~~ | 완료 — `v2.3.0` / `091ca6a` |
 | ~~`upstream/components/`에 복사할 정확한 파일 목록~~ | 완료 — P0-T03, §3 트리 참조 |
-| 기존 hook만으로 EfficientAD lifecycle이 충분한지 | P1 |
-| auxiliary transform이 `transform.py`에 별도로 필요한지 (§4.5) | P4 (upstream `torch_model.py` 확인 후) |
+| ~~기존 hook만으로 EfficientAD lifecycle이 충분한지~~ | 완료 — P5. 충분하지 않았다. task-agnostic hook `on_validation_start`를 `core/adapter.py`·`core/engine.py`에 추가(기본 no-op, §4.3) |
+| ~~auxiliary transform이 `transform.py`에 별도로 필요한지 (§4.5)~~ | 완료 — P4. 불필요. auxiliary 전용 파이프라인은 `EfficientAdAdapter._build_auxiliary_loader`에 두고, 공통 `anomaly_default`에는 `normalize` 플래그만 추가 |
 | ~~`InferenceBatch` 조달 방식~~ | 완료 — P0-T03, `dataclasses/torch/base.py` + `dataclasses/generic.py` 파일째 복사(§3) |
 | ~~torchvision resnet18 state_dict의 unexpected key가 classifier head뿐인지 (§4.6)~~ | 완료 — P2. 아니었다: `layer4.*`도 unexpected(timm이 뒤쪽 스테이지를 제거). 최상위 서브모듈 존재 여부 기반 판정으로 대체(§4.6) |
 | ~~EfficientAD 학습 budget — batch size 1에서 몇 epoch을 돌릴지~~ | 완료 — P4-T04. bottle(209 train, batch_size=1) 1 epoch ≈ 30초 측정, `train.epochs: 20`(≈10분) / `scheduler.step_size: 19`로 확정(`configs/anomaly/efficientad.yaml`) |
-| MVTec 대표 3개 카테고리 선정 | P3 |
-| 복수 parameter group을 요구하는 모델의 optimizer 표현 (§4.2) | v0.1 범위 밖 |
+| ~~MVTec 대표 3개 카테고리 선정~~ | 완료 — P3-T01. bottle, carpet, capsule |
+| 복수 parameter group을 요구하는 모델의 optimizer 표현 (§4.2) | v0.1 범위 밖 — v0.3 이월([RETROSPECTIVE.md](RETROSPECTIVE.md) §4) |
+
+P6 종료 시점의 미결정 항목 처리와 v0.2 이월 목록은 [RETROSPECTIVE.md](RETROSPECTIVE.md)에 있다. `upstream/` 파일별 출처·라이선스는 [UPSTREAM-INVENTORY.md](UPSTREAM-INVENTORY.md), 새 모델 추가 절차는 [MODEL-ADD.md](MODEL-ADD.md)를 참조한다.
 
 ---
 
