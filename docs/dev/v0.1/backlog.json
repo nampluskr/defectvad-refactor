@@ -1186,7 +1186,7 @@
     {
       "id": "P5",
       "title": "EfficientAD 성능 검증",
-      "status": "pending",
+      "status": "done",
       "depends_on": [
         "P4"
       ],
@@ -1279,7 +1279,7 @@
         {
           "id": "P5-T03",
           "title": "완료 조건 전수 검증",
-          "status": "pending",
+          "status": "done",
           "description": "PRD §6의 AC-001~AC-010을 각각 검증한다.",
           "prd_refs": [
             "NFR-002",

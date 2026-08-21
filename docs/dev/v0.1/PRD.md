@@ -49,6 +49,23 @@
 - STFPM·EfficientAD 외 모델 → v0.3, v0.4
 - 15개 카테고리 전체 벤치마크 → v0.2 이후
 - 분산 학습, MLOps, 배포 기능
+- **모델 선택 정책의 monitor metric 포화 대응 → v0.2** (2026-08-21 P5에서 발견, 사용자 판단으로 이월)
+
+### monitor metric 포화 (v0.2 이월)
+
+`core/engine.py#Trainer.fit`의 갱신 조건이 엄격한 부등호(`current > best_metric`)이므로, monitor metric이 상한에 도달하면 이후 갱신이 일어나지 않고 `best.pth`가 그 시점에 고정된다. AUROC·accuracy처럼 최댓값이 1.0인 지표에서 발생한다.
+
+P5 재측정에서 실제로 관측되었다. bottle은 `image_auroc`가 epoch 3에 1.0에 도달해 `best.pth`가 고정되는 동안, 감시 대상이 아닌 `pixel_auroc`는 epoch 20까지 0.922 → 0.985로 계속 개선되었다. 보고된 bottle `pixel_auroc` 0.922는 모델 성능이 아니라 선택 정책의 산물이며 실제 도달값보다 0.063 낮다.
+
+v0.1에서 다루지 않는 이유는 `core/`의 공통 선택 정책이라 anomaly 외 4개 task(classification, detection, segmentation, toy)에 모두 영향을 주는 등급 C 변경이고, 동점 처리 정책을 어떻게 정할지가 v0.1 범위를 넘는 설계 판단이기 때문이다.
+
+v0.2에서 검토할 방향은 다음과 같다. 어느 쪽이든 공통 루프에 모델명·task명 분기를 두지 않아야 한다(NFR-005).
+
+- 동점 시 후순위 epoch 채택(`>=`) — 단순하나 과적합이 진행된 후반 epoch을 고르는 위험이 있다
+- 동점 시 보조 지표로 판정 — 타당하나 "복수 지표 기반 선택"이라는 새 개념을 공통 루프에 도입해야 한다
+- 포화하지 않는 monitor metric 사용(average precision 등) — reference와의 비교 기준이 달라진다
+
+v0.1 결과 해석 시에는 bottle `pixel_auroc`가 과소 보고된 값이라는 단서를 함께 읽는다.
 
 ## 5. 성능 판정 절차
 
