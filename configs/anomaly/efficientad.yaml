@@ -21,11 +21,11 @@ data:
 
 # SPEC SS4.5: Adam lr 1e-4, weight_decay 1e-5. StepLR step_size is int(0.95 * train.epochs),
 # hardcoded here (v0.1 has no config-level derived-value syntax) -- MUST be kept paired with
-# train.epochs below. train.epochs=5 -> int(0.95 * 5) = 4. P4-T04 revisits this pairing once the
-# real training budget is decided with the user.
+# train.epochs below. train.epochs=20 -> int(0.95 * 20) = 19. Budget decided in P4-T04: bottle
+# (209 train images, batch_size=1) measured at ~30s/epoch, so epochs=20 is ~10 min wall time.
 optim:
   optimizer: {name: adam, params: {lr: 0.0001, weight_decay: 0.00001}}
-  scheduler: {name: step, params: {step_size: 4, gamma: 0.1}}  # paired with train.epochs: 5 below
+  scheduler: {name: step, params: {step_size: 19, gamma: 0.1}}  # paired with train.epochs: 20 below
 
 train:
-  epochs: 5  # paired with optim.scheduler.params.step_size: 4 above -- change both together
+  epochs: 20  # paired with optim.scheduler.params.step_size: 19 above -- change both together

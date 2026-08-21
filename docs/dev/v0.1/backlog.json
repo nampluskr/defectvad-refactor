@@ -985,7 +985,7 @@
     {
       "id": "P4",
       "title": "EfficientAD 통합",
-      "status": "pending",
+      "status": "done",
       "depends_on": [
         "P3"
       ],
@@ -1138,7 +1138,7 @@
         {
           "id": "P4-T04",
           "title": "EfficientAD end-to-end 동작 확인 및 학습 budget 결정",
-          "status": "pending",
+          "status": "done",
           "description": "train/evaluate/predict 동작을 확인하고, batch size 1에서 현실적인 epoch 수를 사용자와 함께 정한다.",
           "prd_refs": [
             "FR-003",

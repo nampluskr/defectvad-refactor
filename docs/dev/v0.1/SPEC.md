@@ -400,7 +400,7 @@ config가 만들어지는 경로는 두 곳이며 **둘 다** 치환을 거쳐�
 | auxiliary transform이 `transform.py`에 별도로 필요한지 (§4.5) | P4 (upstream `torch_model.py` 확인 후) |
 | ~~`InferenceBatch` 조달 방식~~ | 완료 — P0-T03, `dataclasses/torch/base.py` + `dataclasses/generic.py` 파일째 복사(§3) |
 | ~~torchvision resnet18 state_dict의 unexpected key가 classifier head뿐인지 (§4.6)~~ | 완료 — P2. 아니었다: `layer4.*`도 unexpected(timm이 뒤쪽 스테이지를 제거). 최상위 서브모듈 존재 여부 기반 판정으로 대체(§4.6) |
-| EfficientAD 학습 budget — batch size 1에서 몇 epoch을 돌릴지 | P4 (PRD §5에 따라 사용자 실행 시간과 함께 판단) |
+| ~~EfficientAD 학습 budget — batch size 1에서 몇 epoch을 돌릴지~~ | 완료 — P4-T04. bottle(209 train, batch_size=1) 1 epoch ≈ 30초 측정, `train.epochs: 20`(≈10분) / `scheduler.step_size: 19`로 확정(`configs/anomaly/efficientad.yaml`) |
 | MVTec 대표 3개 카테고리 선정 | P3 |
 | 복수 parameter group을 요구하는 모델의 optimizer 표현 (§4.2) | v0.1 범위 밖 |
 
