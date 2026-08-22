@@ -140,7 +140,7 @@ Task 종류나 모델명에 대한 분기문이 일절 없는 순수 task-agnost
 
 ```text
 src/core/
-├── engine.py           # Trainer (pure-PyTorch fit, evaluate, predict 공통 루프)
+├── engine.py           # Engine (pure-PyTorch fit, evaluate, predict 공통 루프)
 ├── config.py           # Config 로드, Selector 해석(apply_selectors), 병합 및 검증
 ├── checkpoint.py       # Checkpoint 저장/로드 및 RNG 상태 관리
 ├── registry.py         # Module 레지스트리 (MODELS, DATASETS, ADAPTERS, METRICS 등)
@@ -164,7 +164,7 @@ src/core/
   (Selector 해석 및 병합)
        │
        ▼
-[src/core/engine.py (Trainer)]
+[src/core/engine.py (Engine)]
        │
        ├───► [src/tasks/<task>/adapters/ (Lifecycle & Step Hook)]
        │            │
@@ -178,7 +178,7 @@ src/core/
 
 1. **설정 합성**: `scripts/train.py`가 `--data`와 `--model` YAML을 로드하고 `apply_selectors`로 CLI 인자를 주입하여 완전한 Config를 생성한다.
 2. **인스턴스화**: `src/core/registry.py`를 통해 `models/<model>/`의 `nn.Module` 인스턴스, 데이터로더, 어댑터를 생성한다.
-3. **공통 루프 실행**: `src/core/engine.py::Trainer`가 task-agnostic하게 학습/평가 루프를 실행하며, 모델별 특수 lifecycle은 `TaskAdapter`의 hook을 통해 호출된다.
+3. **공통 루프 실행**: `src/core/engine.py::Engine`이 task-agnostic하게 학습/평가 루프를 실행하며, 모델별 특수 lifecycle은 `TaskAdapter`의 hook을 통해 호출된다.
 4. **산출물 저장**: `outputs/<run_name>/` 하위에 체크포인트(`checkpoints/best.pth`), 로그, 지표(`metrics_*.json`), 시각화 이미지가 저장된다.
 
 ---

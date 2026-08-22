@@ -24,7 +24,7 @@ from src.core.builders import (
 from src.core.checkpoint import load_checkpoint
 from src.core.config import resolve_config, validate_config
 from src.core.context import RunContext
-from src.core.engine import Trainer
+from src.core.engine import Engine
 from src.core.logger import format_result, setup_logger
 from src.utils.io import save_json, save_yaml
 
@@ -185,8 +185,8 @@ def main():
                 if hasattr(adapter, k):
                     setattr(adapter, k, v)
 
-    trainer = Trainer(logger=logger)
-    results, elapsed = trainer.evaluate(model, adapter, eval_loader, ctx, split=args.split)
+    engine = Engine(logger=logger)
+    results, elapsed = engine.evaluate(model, adapter, eval_loader, ctx, split=args.split)
 
     # Save metrics JSON
     metrics_file = os.path.join(output_dir, f"metrics_{args.split}.json")

@@ -33,6 +33,12 @@ class Registry:
     def keys(self):
         return sorted(self.entries.keys())
 
+    def __contains__(self, name):
+        return name in self.entries
+
+    def __iter__(self):
+        return iter(self.entries)
+
 
 DATASETS = Registry("dataset")
 TRANSFORMS = Registry("transform")

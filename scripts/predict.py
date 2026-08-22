@@ -1,5 +1,6 @@
 import argparse
 import glob
+import importlib
 import os
 import sys
 import time
@@ -19,12 +20,18 @@ from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms.v2 as T
 import yaml
 
-from src.core.builders import build_adapter, build_loss, build_metrics, build_model
+from src.core.builders import (
+    build_adapter,
+    build_loss,
+    build_metrics,
+    build_model,
+    build_transforms,
+)
 from src.core.checkpoint import load_checkpoint
 from src.core.config import resolve_config, validate_config
 from src.core.context import RunContext
+from src.core.engine import Engine
 from src.core.logger import setup_logger
-from src.tasks.anomaly.postprocess.visualizer import save_prediction_visualization
 from src.utils.io import save_json
 
 # Pre-load tasks for registry population
@@ -37,14 +44,9 @@ SUPPORTED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".webp"}
 class PredictImageDataset(Dataset):
     """Dataset for inference on raw images."""
 
-    def __init__(self, image_paths, image_size=(256, 256)):
+    def __init__(self, image_paths, transform):
         self.image_paths = image_paths
-        self.transform = T.Compose([
-            T.ToImage(),
-            T.Resize(image_size, antialias=True),
-            T.ToDtype(torch.float32, scale=True),
-            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
+        self.transform = transform
 
     def __len__(self):
         return len(self.image_paths)
@@ -92,7 +94,7 @@ def parse_args():
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to model checkpoint (.pth)")
     parser.add_argument("--output-dir", "-o", type=str, help="Output directory for predictions and visualizations")
     parser.add_argument("--batch-size", "-b", type=int, default=16, help="Batch size for inference (default: 16)")
-    parser.add_argument("--threshold", type=float, default=None, help="Custom anomaly threshold override")
+    parser.add_argument("--threshold", type=float, default=None, help="Custom decision threshold override")
     parser.add_argument("--no-vis", action="store_true", help="Disable saving visualization images")
     parser.add_argument("--device", type=str, help="Override execution device")
     parser.add_argument("--seed", type=int, help="Override random seed")
@@ -157,10 +159,16 @@ def main():
     if args.device is not None:
         cli_overrides.append(f"runtime.device={args.device}")
 
-    # Fallback to base anomaly data config if --data is not specified
+    # Fallback to model's default data config if --data is not specified
     data_path = args.data
-    if not data_path and not args.config:
-        data_path = "configs/anomaly/data/mvtec.yaml"
+    if not data_path and not args.config and args.model:
+        with open(args.model, "r", encoding="utf-8") as f:
+            raw_model_cfg = yaml.safe_load(f)
+        task_name = raw_model_cfg.get("meta", {}).get("task_name")
+        if task_name:
+            candidate = f"configs/{task_name}/data/mvtec.yaml"
+            if os.path.isfile(candidate):
+                data_path = candidate
 
     config = resolve_config(
         data_path=data_path,
@@ -170,6 +178,13 @@ def main():
         model_selectors=model_selectors,
         cli_overrides=cli_overrides,
     )
+
+    task_name = config.get("meta", {}).get("task_name")
+    if task_name:
+        try:
+            importlib.import_module(f"src.tasks.{task_name}")
+        except ModuleNotFoundError:
+            pass
 
     if args.print_config:
         print(yaml.safe_dump(config, sort_keys=False, allow_unicode=True))
@@ -200,9 +215,20 @@ def main():
     logger.info(f"Checkpoint: {args.checkpoint}")
     logger.info(f"Output directory: {output_dir}")
 
+    # Build transforms
+    transforms_dict = build_transforms(config.get("data", {}))
+    eval_transform = transforms_dict.get("eval")
+    if eval_transform is None:
+        image_size = config.get("data", {}).get("image_size", [256, 256])
+        eval_transform = T.Compose([
+            T.ToImage(),
+            T.Resize(tuple(image_size), antialias=True),
+            T.ToDtype(torch.float32, scale=True),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+
     # Build dataset and dataloader
-    image_size = config.get("data", {}).get("image_size", [256, 256])
-    dataset = PredictImageDataset(image_paths, image_size=tuple(image_size))
+    dataset = PredictImageDataset(image_paths, transform=eval_transform)
     loader = DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -212,8 +238,8 @@ def main():
     )
 
     # Build model, loss, adapter
-    loss_fn = build_loss(config["loss"])
-    metrics = build_metrics([])
+    loss_fn = build_loss(config["loss"]) if "loss" in config else None
+    metrics = build_metrics(config.get("metrics", []))
     adapter = build_adapter(config["adapter"], loss_fn=loss_fn, metrics=metrics)
 
     model = build_model(config["model"])
@@ -230,64 +256,32 @@ def main():
                 if hasattr(adapter, k):
                     setattr(adapter, k, v)
 
-    # Threshold determination
-    threshold = args.threshold
-    if threshold is None and getattr(adapter, "image_threshold", None) is not None:
-        threshold = adapter.image_threshold
-    adapter.image_threshold = threshold
+    # Threshold determination override
+    if args.threshold is not None and hasattr(adapter, "image_threshold"):
+        adapter.image_threshold = args.threshold
+        logger.info(f"Custom decision threshold applied: {args.threshold}")
 
-    logger.info(f"Decision threshold: {threshold if threshold is not None else 'None (unspecified)'}")
-
-    # Inference loop
-    predictions = []
+    # Run inference via Engine
+    engine = Engine(logger=logger)
     start_time = time.perf_counter()
-    anomalous_count = 0
-
-    with torch.no_grad():
-        for batch_images, batch_paths, batch_stems in loader:
-            batch_images = batch_images.to(ctx.device)
-            step_predictions = adapter.predict_step(model, (batch_images, batch_stems), ctx.device)
-            last_maps = getattr(adapter, "_last_maps", None)
-
-            for i, pred in enumerate(step_predictions):
-                img_path = batch_paths[i]
-                stem = batch_stems[i]
-                score = pred["anomaly_score"]
-                is_anom = pred["is_anomalous"]
-
-                if is_anom:
-                    anomalous_count += 1
-
-                vis_path = None
-                if not args.no_vis and last_maps is not None:
-                    vis_path = save_prediction_visualization(
-                        image_path=img_path,
-                        anomaly_map=last_maps[i],
-                        output_dir=vis_dir,
-                        stem=stem,
-                        threshold=threshold,
-                    )
-
-                record = {
-                    "image_path": img_path,
-                    "stem": stem,
-                    "anomaly_score": round(score, 5),
-                    "is_anomalous": is_anom,
-                    "threshold": threshold,
-                    "visualization": vis_path,
-                }
-                predictions.append(record)
-
+    predictions = engine.predict(
+        model=model,
+        adapter=adapter,
+        loader=loader,
+        ctx=ctx,
+        vis_dir=vis_dir if not args.no_vis else None,
+    )
     elapsed = time.perf_counter() - start_time
+
+    # Save predictions JSON
     predictions_file = os.path.join(output_dir, "predictions.json")
     save_json(predictions, predictions_file)
 
     ctx.finish()
     logger.info(f"Inference completed in {elapsed:.2f}s ({len(image_paths) / max(elapsed, 1e-4):.1f} img/s)")
-    logger.info(f"Detected {anomalous_count}/{len(image_paths)} anomalous images")
-    logger.info(f"Saved prediction records to {predictions_file}")
+    logger.info(f"Saved {len(predictions)} prediction records to {predictions_file}")
     if not args.no_vis:
-        logger.info(f"Saved visualization images to {vis_dir}")
+        logger.info(f"Saved visualizations to {vis_dir}")
 
 
 if __name__ == "__main__":

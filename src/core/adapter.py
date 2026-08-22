@@ -63,7 +63,7 @@ class TaskAdapter(ABC):
     def save_predictions(self, predictions, output_dir):
         pass
 
-    def visualize(self, batch, predictions, output_dir, max_items):
+    def visualize(self, batch, predictions, output_dir, max_items=None):
         pass
 
     def bind_class_names_from_config(self, data_config):

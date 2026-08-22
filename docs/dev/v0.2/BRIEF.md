@@ -41,7 +41,7 @@ python scripts/run_batch.py --config <batch.yaml> --mode train|evaluate|predict|
                                 [scripts/ (공통 CLI 진입점)]
                                              │
                                              ▼
-                               [src/core/engine.py (Trainer)]
+                               [src/core/engine.py (Engine)]
                                (Task/모델에 대한 분기문 0개)
                                              │
                      ┌───────────────────────┼───────────────────────┐
@@ -55,7 +55,7 @@ python scripts/run_batch.py --config <batch.yaml> --mode train|evaluate|predict|
 ```
 
 - **공통 엔진 (`src/core/engine.py`)**:
-  - `Trainer`는 Task 종류나 모델명을 전혀 알지 못하며, 공통 학습 루프에 Task명 분기(`if task == 'anomaly'`)를 두지 않는다.
+  - `Engine`은 Task 종류나 모델명을 전혀 알지 못하며, 공통 학습 루프에 Task명 분기(`if task == 'anomaly'`)를 두지 않는다.
 - **어댑터 계층 (`adapters/`)**:
   - Task 고유의 데이터 구조, loss 계산, feature 추출, 사후 평가(threshold, 분위수 캘리브레이션 등)는 어댑터의 lifecycle hook(`train_step`, `eval_step`, `on_fit_start`, `on_fit_end` 등)으로 완전 격리 흡수한다.
 - **순수 PyTorch 모델 패키지 (`models/<model_name>/`)**:

@@ -8,7 +8,7 @@ from src.core.checkpoint import save_checkpoint
 from src.core.logger import format_result
 
 
-class Trainer:
+class Engine:
     def __init__(self, logger=None, metrics_writer=None, checkpoint_dir=None):
         self.logger = logger
         self.metrics_writer = metrics_writer
@@ -180,10 +180,17 @@ class Trainer:
             )
         return results, elapsed
 
-    def predict(self, model, adapter, loader, ctx):
+    def predict(self, model, adapter, loader, ctx, vis_dir=None):
         model.eval()
         predictions = []
         with torch.no_grad():
             for batch in loader:
-                predictions.extend(adapter.predict_step(model, batch, ctx.device))
+                step_predictions = adapter.predict_step(model, batch, ctx.device)
+                if vis_dir is not None:
+                    adapter.visualize(batch, step_predictions, vis_dir)
+                predictions.extend(step_predictions)
         return predictions
+
+
+# Backward compatibility alias
+Trainer = Engine

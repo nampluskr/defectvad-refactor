@@ -1,3 +1,4 @@
+import os
 import torch
 
 from src.core.adapter import TaskAdapter
@@ -7,6 +8,7 @@ from src.tasks.anomaly.postprocess.smoother import (
     smooth_anomaly_map,
     to_output_dict,
 )
+from src.tasks.anomaly.postprocess.visualizer import save_prediction_visualization
 
 
 def anomaly_collate(batch):
@@ -71,7 +73,9 @@ class AnomalyAdapter(TaskAdapter):
 
     def predict_step(self, model, batch, device):
         images = batch[0].to(device)
-        raw_ids = batch[1] if len(batch) > 1 else None
+        paths = batch[1] if len(batch) > 1 and isinstance(batch[1], (list, tuple)) else None
+        stems = batch[2] if len(batch) > 2 and isinstance(batch[2], (list, tuple)) else None
+
         outputs = to_output_dict(model(images))
         maps = self._smooth(outputs["anomaly_map"])
         self._last_maps = maps.detach().cpu()
@@ -82,18 +86,44 @@ class AnomalyAdapter(TaskAdapter):
             is_anomalous = (
                 bool(score >= self.image_threshold) if self.image_threshold is not None else None
             )
-            stem = (
-                raw_ids[i]
-                if isinstance(raw_ids, (list, tuple)) and isinstance(raw_ids[i], str)
-                else f"sample_{i:04d}"
-            )
-            predictions.append({
+            if stems and i < len(stems) and isinstance(stems[i], str):
+                stem = stems[i]
+            elif paths and i < len(paths) and isinstance(paths[i], str):
+                stem = os.path.splitext(os.path.basename(paths[i]))[0]
+            else:
+                stem = f"sample_{i:04d}"
+
+            item = {
                 "stem": stem,
-                "anomaly_score": score,
+                "anomaly_score": round(score, 5),
                 "is_anomalous": is_anomalous,
-                "image_threshold": self.image_threshold,
-            })
+                "threshold": self.image_threshold,
+            }
+            if paths and i < len(paths) and isinstance(paths[i], str):
+                item["image_path"] = paths[i]
+            predictions.append(item)
         return predictions
+
+    def visualize(self, batch, predictions, output_dir, max_items=None):
+        if not output_dir or self._last_maps is None:
+            return
+        os.makedirs(output_dir, exist_ok=True)
+        paths = batch[1] if len(batch) > 1 and isinstance(batch[1], (list, tuple)) else None
+
+        for i, pred in enumerate(predictions):
+            if max_items is not None and i >= max_items:
+                break
+            img_path = pred.get("image_path") or (paths[i] if paths and i < len(paths) else None)
+            stem = pred.get("stem", f"sample_{i:04d}")
+            if img_path and os.path.isfile(img_path):
+                vis_path = save_prediction_visualization(
+                    image_path=img_path,
+                    anomaly_map=self._last_maps[i],
+                    output_dir=output_dir,
+                    stem=stem,
+                    threshold=self.image_threshold,
+                )
+                pred["visualization"] = vis_path
 
     def on_fit_start(self, model, loaders, device):
         if hasattr(model, "on_fit_start"):

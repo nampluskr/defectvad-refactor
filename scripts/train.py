@@ -26,7 +26,7 @@ from src.core.builders import (
 from src.core.checkpoint import load_checkpoint
 from src.core.config import resolve_config, validate_config
 from src.core.context import RunContext
-from src.core.engine import Trainer
+from src.core.engine import Engine
 from src.core.logger import MetricsCsvWriter, setup_logger
 from src.utils.io import save_yaml
 
@@ -173,8 +173,8 @@ def main():
         start_epoch = checkpoint.get("epoch", 0) + 1
         best_metric = checkpoint.get("best_metric")
 
-    trainer = Trainer(logger=logger, metrics_writer=metrics_writer, checkpoint_dir=checkpoint_dir)
-    best_score = trainer.fit(
+    engine = Engine(logger=logger, metrics_writer=metrics_writer, checkpoint_dir=checkpoint_dir)
+    best_score = engine.fit(
         model=model,
         adapter=adapter,
         train_loader=train_loader,
