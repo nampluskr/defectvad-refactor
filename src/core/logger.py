@@ -17,7 +17,7 @@ def format_result(result, sep=", "):
     )
 
 
-def setup_logger(run_dir, log_level="INFO", name="cv_boilerplate"):
+def setup_logger(run_dir, log_level="INFO", name="cv_boilerplate", log_file="train.log"):
     os.makedirs(run_dir, exist_ok=True)
     logger = logging.getLogger(name)
     logger.setLevel(log_level)
@@ -30,11 +30,12 @@ def setup_logger(run_dir, log_level="INFO", name="cv_boilerplate"):
     logger.addHandler(console_handler)
 
     file_formatter = logging.Formatter(FILE_LOG_FORMAT, datefmt=DATE_FORMAT)
-    file_handler = logging.FileHandler(os.path.join(run_dir, "train.log"), encoding="utf-8")
+    file_handler = logging.FileHandler(os.path.join(run_dir, log_file), encoding="utf-8")
     file_handler.setFormatter(file_formatter)
     logger.addHandler(file_handler)
 
     return logger
+
 
 
 class MetricsCsvWriter:

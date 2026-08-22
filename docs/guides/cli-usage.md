@@ -1,250 +1,242 @@
-# CLI 사용법
+# CLI 사용 가이드 (CLI Usage Guide)
 
-이 저장소의 모든 실행은 `python -m src <command>` 하나로 통한다. 학습용 스크립트, 평가용 스크립트가 따로 없다.
+이 문서는 `cv_boilerplate` 프레임워크의 직접 실행 스크립트 진입점(`scripts/`) 및 3단계 CLI 인자 체계를 활용하는 방법을 설명한다.
 
-## 1. 왜 `python -m src`인가
+---
 
-`src/` 폴더가 하나의 Python 패키지이고, 그 안의 `src/__main__.py`가 패키지를 직접 실행했을 때의 진입점이다. `python train.py` 대신 `python -m src train`을 쓰는 이유는 두 가지다.
+## 1. CLI 아키텍처 및 3단계 인자 체계
 
-1. `src.core`, `src.tasks` 같은 내부 import가 항상 같은 방식으로 해석된다. 스크립트를 직접 실행하면 실행 위치에 따라 import가 깨진다.
-2. 어떤 명령을 쓰든 네트워크 차단 가드가 먼저 켜진다. `src/__main__.py:7`에서 torch를 포함한 무거운 모듈보다 먼저 `enable_offline_guard()`를 호출한다.
+v0.2부터 기존의 `python -m src <command>` 패키지 호출 방식을 완전히 폐기하고, 사용자가 직관적으로 제어할 수 있는 **스크립트 직접 실행 형태**로 전면 전환했다.
 
-**반드시 저장소 루트에서 실행한다.** config 경로가 `configs/...` 같은 상대 경로로 쓰이기 때문이다.
+모든 실행 스크립트는 아래 3단계 계층의 인자 체계를 공통으로 지원한다.
 
-## 2. 사전 준비
+```text
+[CLI 3단계 인자 계층]
+├── 1. 1급 표준 플래그 (First-class Flags)
+│   ├── --data (-d), --model (-m), --config (-c) : 구성 파일 경로
+│   ├── --epochs (-e), --batch-size (-b) : 핵심 학습 파라미터
+│   ├── --output-dir (-o), --run-name : 산출물 경로 및 실험 식별자
+│   ├── --checkpoint, --resume : 가중치 로드 및 학습 재개
+│   ├── --split (-s), --input (-i) : 평가 split 및 추론 대상
+│   └── --device, --seed, --print-config : 환경 제어 및 dry-run
+│
+├── 2. 동적 Selector (--data.<key>, --model.<key>)
+│   └── YAML의 `selectors:` 블록에 선언된 키를 동적으로 파싱하여 연관 설정 동시 주입
+│       (예: --data.category bottle, --model.backbone resnet50)
+│
+└── 3. 범용 오버라이드 (--set <dotted.key>=<value>)
+    └── YAML 구조 내 임의의 기존 키를 점 표기로 직접 수정
+        (예: --set runtime.device=cpu, --set train.monitor.mode=max)
+```
 
-### 2.1. 환경 활성화
+---
 
+## 2. 사전 준비 및 환경 설정
+
+### 2.1. Conda 가상환경 활성화
 ```bash
 conda activate pytorch_env
 cd /mnt/d/projects/nampluskr/00_review/260820_defectvad-refactor
 ```
 
-### 2.2. 로컬 경로 설정
-
-데이터셋과 백본 가중치 위치는 머신마다 다르므로 config에 직접 쓰지 않고 `${paths.dataset_root}`, `${paths.backbone_root}` placeholder로 참조한다. 개발 머신 기본값은 `/mnt/d/datasets`, `/mnt/d/backbones`이며, 다른 값이 필요하면 `configs/local.yaml`을 만든다.
+### 2.2. 로컬 머신 경로 설정 (`configs/local.yaml`)
+데이터셋과 백본 가중치 위치는 머신마다 다르므로 config에 하드코딩하지 않고 `${paths.dataset_root}`, `${paths.backbone_root}` placeholder로 참조한다.
 
 ```bash
+# 템플릿 복사 후 로컬 경로 지정
 cp configs/local.example.yaml configs/local.yaml
 ```
 
-`configs/local.yaml`은 gitignore 대상이라 커밋되지 않는다. 우선순위는 높은 쪽이 이긴다.
+경로 우선순위:
+1. `--set paths.dataset_root=...` (CLI 최우선)
+2. 환경변수 `DATASET_DIR` / `BACKBONE_DIR`
+3. `configs/local.yaml` (로컬 머신 SSOT)
+4. Task별 `_base.yaml`의 기본값
 
-| 순위 | 방법 |
-|---|---|
-| 1 | `--set paths.dataset_root=...` |
-| 2 | 환경변수 `DATASET_DIR` / `BACKBONE_DIR` |
-| 3 | `configs/local.yaml` |
-| 4 | 각 task `_base.yaml`의 `paths` 블록 |
-
-### 2.3. 자산 점검
-
-학습 전에 필요한 파일이 실제로 있는지부터 확인한다.
-
-```bash
-python -m src check-assets
-```
-
-`configs/assets.yaml`에 나열된 데이터셋 폴더와 백본 `.pth`를 하나씩 검사해 `OK` / `MISSING`과 크기를 표로 출력한다. 하나라도 없으면 종료 코드 1로 끝난다. **파일이 없어도 자동 다운로드하지 않는다.** 표에 찍힌 경로에 직접 파일을 놓아야 한다.
+---
 
 ## 3. 명령어 한눈에 보기
 
-| 명령 | 하는 일 | 필수 인자 |
+| 스크립트 | 주요 역할 | 핵심 필수/주요 인자 |
 |---|---|---|
-| `check-assets` | 데이터셋·백본 존재 확인 | 없음 |
-| `config` | config 최종 해석 결과 출력 | config 경로 |
-| `train` | 학습 후 checkpoint 저장 | config 경로 |
-| `evaluate` | checkpoint로 지표 측정 | config 경로, `--checkpoint` |
-| `predict` | 이미지에 대해 추론 | config 경로, `--checkpoint`, `--input` |
-| `benchmark` | 여러 모델을 같은 조건으로 비교 | benchmark 경로 |
-| `leaderboard` | 기존 benchmark 결과 표 재생성 | benchmark 출력 폴더 |
+| `scripts/train.py` | 모델 학습 및 체크포인트 저장 | `--data`, `--model`, `--output-dir`, `--run-name` |
+| `scripts/evaluate.py` | 체크포인트 기반 split 지표 산출 | `--data`, `--model`, `--checkpoint`, `--split` |
+| `scripts/predict.py` | 이미지 또는 폴더 대상 추론/시각화 | `--model`, `--checkpoint`, `--input` |
+| `scripts/run_batch.py` | 다중 매트릭스 일괄 실행 | `--config`, `--mode` |
+| `scripts/check_assets.py`| 로컬 데이터셋/가중치 무결성 점검 | `--config` (선택) |
+| `scripts/report.py` | 실행 결과 지표 취합 및 리더보드 출력 | `--dir` |
 
-전역 옵션 `--log-level`은 명령 앞에 둔다. 기본값은 `INFO`다.
+---
 
+## 4. 상세 사용법 및 예시
+
+### 4.1. `scripts/train.py` — 모델 학습
+
+Data Config와 Model Config를 직교 결합하여 모델을 학습한다.
+
+#### STFPM 학습 예시 (ResNet-18 / ResNet-50)
 ```bash
-python -m src --log-level DEBUG train configs/anomaly/stfpm.yaml
+# 1. STFPM + ResNet-18 (bottle 카테고리)
+python scripts/train.py \
+  --data configs/anomaly/data/mvtec.yaml --data.category bottle \
+  --model configs/anomaly/models/stfpm.yaml --model.backbone resnet18 \
+  --epochs 100 \
+  --batch-size 8 \
+  --output-dir outputs \
+  --run-name stfpm_resnet18_bottle
+
+# 2. STFPM + ResNet-50 (carpet 카테고리)
+python scripts/train.py \
+  --data configs/anomaly/data/mvtec.yaml --data.category carpet \
+  --model configs/anomaly/models/stfpm.yaml --model.backbone resnet50 \
+  --epochs 100 \
+  --batch-size 8 \
+  --output-dir outputs \
+  --run-name stfpm_resnet50_carpet
 ```
 
-## 4. 전형적인 작업 흐름
-
+#### EfficientAD 학습 예시 (Small / Medium)
 ```bash
-# 1. 자산 확인
-python -m src check-assets
+# 1. EfficientAD Small (bottle 카테고리)
+python scripts/train.py \
+  --data configs/anomaly/data/mvtec.yaml --data.category bottle \
+  --model configs/anomaly/models/efficientad.yaml --model.size small \
+  --epochs 70 \
+  --batch-size 1 \
+  --output-dir outputs \
+  --run-name effad_small_bottle
 
-# 2. 실제로 어떤 설정으로 돌아갈지 미리 확인 (학습 시작 전 dry-run)
-python -m src config configs/anomaly/stfpm.yaml
-
-# 3. 학습
-python -m src train configs/anomaly/stfpm.yaml --set output.run_name=stfpm_bottle
-
-# 4. test split으로 평가
-python -m src evaluate configs/anomaly/stfpm.yaml \
-    --checkpoint outputs/runs/anomaly/stfpm_bottle/checkpoints/best.pth \
-    --split test
-
-# 5. 개별 이미지 추론
-python -m src predict configs/anomaly/stfpm.yaml \
-    --checkpoint outputs/runs/anomaly/stfpm_bottle/checkpoints/best.pth \
-    --input /mnt/d/datasets/mvtec/bottle/test/broken_large
+# 2. EfficientAD Medium (grid 카테고리)
+python scripts/train.py \
+  --data configs/anomaly/data/mvtec.yaml --data.category grid \
+  --model configs/anomaly/models/efficientad.yaml --model.size medium \
+  --epochs 70 \
+  --batch-size 1 \
+  --output-dir outputs \
+  --run-name effad_medium_grid
 ```
 
-## 5. 명령별 상세
-
-### 5.1. `config` — 설정 확인
-
+#### 중단된 학습 재개 (`--resume`)
 ```bash
-python -m src config configs/anomaly/stfpm.yaml
-python -m src config configs/anomaly/stfpm.yaml --set data.params.category=capsule
+python scripts/train.py \
+  --data configs/anomaly/data/mvtec.yaml --data.category bottle \
+  --model configs/anomaly/models/stfpm.yaml \
+  --resume outputs/stfpm_resnet18_bottle/checkpoints/last.pth
 ```
 
-`_base.yaml` 병합, `configs/local.yaml` 반영, `--set` 적용, `${paths.*}` 치환까지 끝난 최종 YAML을 그대로 출력한다. 학습이 오래 걸리는 만큼, 설정을 바꿨을 때는 먼저 이 명령으로 의도한 값이 들어갔는지 확인하는 편이 안전하다.
+---
 
-### 5.2. `train` — 학습
+### 4.2. `scripts/evaluate.py` — 모델 평가
 
-```bash
-python -m src train configs/anomaly/stfpm.yaml --set output.run_name=stfpm_bottle
-```
-
-| 옵션 | 설명 |
-|---|---|
-| `--set KEY=VALUE` | config 값 덮어쓰기. 여러 번 반복 가능 |
-| `--resume PATH` | checkpoint에서 이어서 학습 |
-
-학습이 끝나면 best checkpoint를 다시 불러 valid를 한 번 더 평가한 결과를 `metrics_final.json`에 남긴다. 모델별 calibration이 학습 종료 시점에 적용되기 때문에, 학습 중 기록된 값이 아니라 이 값이 최종 성능이다.
-
-중단된 학습을 이어서 하려면 다음과 같이 한다.
+학습된 체크포인트를 로드하여 지정된 split(기본값: `test`)에 대해 Image AUROC, Pixel AUROC를 산출한다.
 
 ```bash
-python -m src train configs/anomaly/stfpm.yaml \
-    --set output.run_name=stfpm_bottle \
-    --resume outputs/runs/anomaly/stfpm_bottle/checkpoints/last.pth
+# 1. STFPM ResNet-50 테스트셋 평가
+python scripts/evaluate.py \
+  --data configs/anomaly/data/mvtec.yaml --data.category bottle \
+  --model configs/anomaly/models/stfpm.yaml --model.backbone resnet50 \
+  --checkpoint outputs/stfpm_resnet50_bottle/checkpoints/best.pth \
+  --split test
+
+# 2. 검증셋(valid) 평가 및 배치 크기 오버라이드
+python scripts/evaluate.py \
+  --data configs/anomaly/data/mvtec.yaml --data.category bottle \
+  --model configs/anomaly/models/stfpm.yaml \
+  --checkpoint outputs/stfpm_resnet18_bottle/checkpoints/best.pth \
+  --split valid \
+  --batch-size 32 \
+  --output-dir outputs/eval_results/bottle_valid
 ```
 
-### 5.3. `evaluate` — 평가
+---
+
+### 4.3. `scripts/predict.py` — 단일 / 폴더 추론 및 히트맵 시각화
+
+단일 이미지 파일 또는 이미지들이 들어 있는 디렉터리에 대해 이상 탐지 추론을 수행하고, `predictions.json` 및 `[원본 | 히트맵 | 오버레이]` 합성 시각화 이미지를 저장한다.
 
 ```bash
-python -m src evaluate configs/anomaly/stfpm.yaml \
-    --checkpoint outputs/runs/anomaly/stfpm_bottle/checkpoints/best.pth \
-    --split test
+# 1. 이미지 디렉터리 일괄 추론 및 시각화 저장
+python scripts/predict.py \
+  --model configs/anomaly/models/stfpm.yaml --model.backbone resnet50 \
+  --checkpoint outputs/stfpm_resnet50_bottle/checkpoints/best.pth \
+  --input /mnt/d/datasets/mvtec/bottle/test/broken_large \
+  --output-dir outputs/predictions/bottle_broken
+
+# 2. 단일 이미지 대상 추론 및 커스텀 임계값 지정
+python scripts/predict.py \
+  --model configs/anomaly/models/stfpm.yaml \
+  --checkpoint outputs/stfpm_resnet18_bottle/checkpoints/best.pth \
+  --input /mnt/d/datasets/mvtec/bottle/test/broken_large/000.png \
+  --threshold 0.45 \
+  --output-dir outputs/predictions/single_sample
+
+# 3. EfficientAD 추론
+python scripts/predict.py \
+  --model configs/anomaly/models/efficientad.yaml --model.size medium \
+  --checkpoint outputs/effad_medium_grid/checkpoints/best.pth \
+  --input /mnt/d/datasets/mvtec/grid/test/thread \
+  --output-dir outputs/predictions/grid_thread
 ```
 
-| 옵션 | 설명 |
-|---|---|
-| `--checkpoint PATH` | 필수 |
-| `--split NAME` | 기본 `test`. `valid`도 가능 |
+---
 
-`test` split은 이 명령에서만 열린다. `train`은 `train`/`valid`만 접근하므로 학습 중 test 누수가 구조적으로 차단된다.
+### 4.4. 설정 확인 (Dry-run / `--print-config`)
 
-config의 `output.save_visualizations`가 true면 첫 배치에 대한 시각화 이미지가 `visualizations/`에 저장된다.
 
-### 5.4. `predict` — 추론
+실제 학습/평가를 시작하기 전에 셀렉터와 오버라이드가 반영된 최종 YAML 구조를 미리 확인할 수 있다.
 
 ```bash
-python -m src predict configs/anomaly/stfpm.yaml \
-    --checkpoint outputs/runs/anomaly/stfpm_bottle/checkpoints/best.pth \
-    --input /mnt/d/datasets/mvtec/bottle/test/broken_large \
-    --output outputs/predict_bottle
+python scripts/train.py \
+  --data configs/anomaly/data/mvtec.yaml --data.category bottle \
+  --model configs/anomaly/models/stfpm.yaml --model.backbone resnet50 \
+  --print-config
 ```
 
-| 옵션 | 설명 |
-|---|---|
-| `--checkpoint PATH` | 필수 |
-| `--input PATH` | 이미지 파일 하나 또는 이미지가 든 폴더 |
-| `--output DIR` | 생략하면 `outputs/runs/<task>/...__predict`에 자동 생성 |
+---
 
-폴더를 주면 `.png`, `.jpg`, `.jpeg`를 이름순으로 모아 **한 배치로 한 번에** 처리한다. 파일이 아주 많은 폴더를 그대로 넘기면 메모리가 부족할 수 있다.
+### 4.4. 범용 오버라이드 (`--set`)
 
-결과는 `predictions/predict.json`과 task별 산출물(anomaly의 경우 anomaly map)로 저장된다.
-
-### 5.5. `benchmark` — 모델 비교
+`--set`은 YAML 구조 내의 임의의 기존 키를 점 표기법으로 직접 수정할 때 사용한다.
 
 ```bash
-python -m src benchmark configs/benchmarks/anomaly_baseline.yaml
+# 디바이스 CPU 변경 및 에포크 축소
+python scripts/train.py \
+  --data configs/anomaly/data/mvtec.yaml --data.category bottle \
+  --model configs/anomaly/models/stfpm.yaml \
+  --set runtime.device=cpu \
+  --set train.epochs=1 \
+  --set output.run_name=smoke_test
 ```
 
-| 옵션 | 설명 |
-|---|---|
-| `--only NAME` | 특정 split만 실행 |
-| `--overwrite` | 기존 결과 폴더를 덮어씀 |
-| `--set KEY=VALUE` | 모든 split에 공통 적용 |
+> [!IMPORTANT]
+> `--set`은 기존에 존재하는 키만 덮어쓸 수 있습니다. 오타로 인한 잘못된 키 주입을 방지하기 위해 존재하지 않는 키를 지정하면 `ConfigError`가 발생합니다.
 
-benchmark config는 하나의 `base` config를 두고 split마다 `override`로 모델만 바꾼다. 데이터·seed·image_size 같은 조건이 split 간에 동일한지 자동 검사하며, 어긋나면 control 위반으로 보고한다. 즉 "같은 조건에서 모델만 바꾼 비교"임을 도구가 보증한다.
+---
 
-`configs/benchmarks/anomaly_baseline.yaml`은 `custom_ae`, `stfpm`, `efficientad` 세 모델을 비교한다.
+## 5. 산출물 구조 (Output Artifacts)
 
-### 5.6. `leaderboard` — 표 재생성
-
-```bash
-python -m src leaderboard outputs/benchmarks/anomaly_baseline
-```
-
-이미 실행한 benchmark 결과 폴더를 다시 읽어 순위표만 다시 만든다. 학습은 다시 하지 않는다. 원래 실행에 있던 split 폴더가 사라졌으면 조용히 빼지 않고 오류를 낸다.
-
-## 6. `--set` 사용법
-
-`--set`은 config 파일을 고치지 않고 값 하나만 바꿀 때 쓴다. 키는 YAML 계층을 점으로 이어 쓰고, 값은 YAML 문법으로 해석된다.
-
-```bash
-# 카테고리 변경
---set data.params.category=capsule
-
-# 에폭 수 변경 (정수로 해석됨)
---set train.epochs=1
-
-# 리스트는 대괄호
---set data.image_size=[128,128]
-
-# 리스트 원소는 인덱스로 지정
---set metrics.0.name=image_auroc
-
-# null 지정
---set optim.scheduler=null
-
-# 여러 개는 --set을 반복
---set data.params.category=carpet --set train.epochs=1 --set output.run_name=smoke
-```
-
-**중요: `--set`은 이미 있는 키만 덮어쓸 수 있다.** 없는 키를 지정하면 `references nonexistent key`라는 `ConfigError`가 난다. 새 항목을 추가하려면 config 파일 자체를 수정해야 한다. 오타를 조용히 무시하지 않기 위한 의도된 동작이다.
-
-## 7. 출력물 구조
+실행이 완료되면 `--output-dir` 하위에 다음과 같은 구조로 산출물이 정리된다:
 
 ```text
-outputs/
-├── runs/<task_name>/<run_name>/
-│   ├── config.resolved.yaml   # 실제 사용된 최종 설정 (재현용)
-│   ├── env.json               # 실행 환경 정보
-│   ├── train.log              # 로그
-│   ├── metrics_epoch.csv      # epoch별 지표
-│   ├── metrics_final.json     # 최종 지표
-│   ├── checkpoints/
-│   │   ├── best.pth
-│   │   └── last.pth
-│   └── visualizations/
-└── benchmarks/<bench_name>/
-    ├── splits/<split_name>/   # 위 run 폴더와 같은 구조
-    ├── control_report.json    # 조건 동일성 검사 결과
-    ├── leaderboard.csv         # 순위표
-    └── leaderboard.md
+outputs/<run_name>/
+├── config.resolved.yaml      # 실험 재현을 위한 최종 병합/해석 설정 파일
+├── train.log                 # 학습 진행 로그
+├── evaluate_test.log         # 테스트 평가 로그
+├── metrics_epoch.csv         # 에포크별 Loss, AUROC, Learning Rate 기록
+├── metrics_test.json         # 최종 테스트 평가 지표 JSON (Image/Pixel AUROC)
+└── checkpoints/
+    ├── best.pth              # 모니터링 지표 기준 최고 성능 체크포인트
+    └── last.pth              # 마지막 에포크 체크포인트 (RNG 및 Optimizer 상태 보존)
 ```
 
-`run_name`을 지정하지 않으면 `<config파일명>__<타임스탬프>` 형식으로 자동 생성된다. 나중에 찾기 쉽도록 `--set output.run_name=...`으로 직접 붙이는 편이 좋다.
+---
 
-**같은 `run_name`을 다시 쓰면 이전 결과 위에 덮어쓴다.** 재실행할 때는 이름을 바꾸거나 이전 폴더를 먼저 옮긴다.
+## 6. 자주 겪는 상황 및 트러블슈팅
 
-## 8. 자주 겪는 상황
-
-| 증상 | 원인과 해결 |
-|---|---|
-| `check-assets`에서 `MISSING` | 표에 찍힌 경로에 파일이 없다. 파일을 놓거나 `configs/local.yaml`의 경로를 고친다 |
-| `ConfigError: paths.dataset_root does not exist` | `paths.dataset_root`/`paths.backbone_root` 자체가 존재하지 않는 경로다. 메시지가 안내하는 대로 `--set`, 환경변수, `configs/local.yaml` 중 하나로 고친다 |
-| `ConfigError: ... nonexistent key` | `--set` 키 오타이거나 config에 없는 키다. `python -m src config`로 실제 키를 확인한다 |
-| `OfflineViolationError` | 코드가 네트워크에 접근하려 했다. pretrained 가중치를 로컬 `.pth`로 지정했는지 확인한다 |
-| `LocalAssetError` | 지정한 백본 `.pth`가 없다. 랜덤 초기화로 조용히 넘어가지 않고 의도적으로 실패시킨다 |
-| CUDA out of memory | `--set data.batch_size=4`로 줄이거나 `--set data.image_size=[128,128]` |
-| 빠른 동작 확인만 하고 싶다 | `--set train.epochs=1 --set data.batch_size=2 --set output.run_name=smoke` |
-
-## 9. 참고
-
-- 명령·인자 정의: `src/cli/parser.py`
-- 각 명령의 실제 동작: `src/cli/commands.py`
-- 설정 항목의 계약: `docs/dev/v0.1/SPEC.md`
+| 증상 | 원인 | 해결 방법 |
+|---|---|---|
+| `OfflineViolationError` | 모델/라이브러리가 외부 인터넷 접근을 시도함 | 오프라인 가드가 작동한 정상 동작입니다. 백본 가중치가 로컬 경로(`${paths.backbone_root}`)에 있는지 확인합니다. |
+| `LocalAssetError: ... not found` | 필요한 로컬 가중치 또는 데이터셋 폴더가 없음 | `configs/local.yaml`의 경로가 올바른지 확인하고 실제 파일이 존재하는지 점검합니다. |
+| `ConfigError: references nonexistent key` | `--set` 키 오타 또는 정의되지 않은 키 참조 | `--print-config`로 실제 존재하는 키 이름을 확인합니다. |
+| `SplitError: split 'train' and 'valid' overlap` | 데이터 분할 파일에 중복 샘플이 포함됨 | 데이터 누수 방지 가드가 작동한 것입니다. 분할 파일(`configs/splits/*.json`)을 점검합니다. |
+| CUDA Out of Memory | GPU 메모리 부족 | `--batch-size`를 줄이거나 `--set data.image_size=[128,128]`로 해상도를 조절합니다. |
