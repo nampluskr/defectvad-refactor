@@ -1,0 +1,35 @@
+meta:
+  name: mvtec_efficientad_grid
+  task: anomaly
+
+base_data: configs/anomaly/data/mvtec.yaml
+base_model: configs/anomaly/models/efficientad.yaml
+
+matrix:
+  data:
+    category:
+      - bottle
+      - cable
+      - capsule
+      - carpet
+      - grid
+      - hazelnut
+      - leather
+      - metal_nut
+      - pill
+      - screw
+      - tile
+      - toothbrush
+      - transistor
+      - wood
+      - zipper
+  model:
+    size:
+      - small
+      - medium
+
+execution:
+  run_name_pattern: "efficientad_{model_size}_{data_category}"
+  output_root: "outputs/batch_mvtec_efficientad"
+  checkpoint_pattern: "outputs/{run_name}/checkpoints/best.pth"
+  split: test

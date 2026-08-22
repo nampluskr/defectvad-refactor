@@ -29,13 +29,13 @@ python scripts/train.py \
 ### 다중 조건
 
 ```bash
-python scripts/run_batch.py \
+python scripts/batch.py \
   --config configs/batch/mvtec_anomaly.yaml \
   --mode train
 ```
 
 ```bash
-python scripts/run_batch.py \
+python scripts/batch.py \
   --config configs/<batch>.yaml \
   --mode train|evaluate|predict|all
 ```

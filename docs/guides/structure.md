@@ -55,7 +55,8 @@ configs/
 │   │   ├── btad_01.json (3종)
 │   │   └── visa_candle.json (12종)
 │   └── batch/                      # 다중 조건 배치 매니페스트
-│       └── mvtec_matrix.yaml       # MVTec 다중 카테고리/모델 실행 매트릭스
+│       ├── mvtec_stfpm_grid.yaml   # [Matrix] MVTec 다중 카테고리/모델 실행 매트릭스
+│       └── mvtec_hetero_cases.yaml # [Cases] 개별 조건 나열형 매니페스트
 ├── assets.yaml                     # 로컬 자산 경로 레지스트리
 └── local.example.yaml              # 로컬 머신별 경로 오버라이드 템플릿
 ```
@@ -71,7 +72,7 @@ scripts/
 ├── train.py                # UC-001: 단일 조건 학습 진입점
 ├── evaluate.py             # UC-002: 단일 조건 평가 진입점
 ├── predict.py              # UC-003: 단일 조건 추론 및 시각화 진입점
-├── run_batch.py            # UC-004: 다중 조건 일괄 실행 진입점 (배치 러너)
+├── batch.py                # UC-004: 다중 조건 일괄 실행 진입점 (배치 러너)
 ├── generate_splits.py      # 데이터셋 분할 파일(train/valid/test JSON) 생성 CLI 진입점
 ├── check_assets.py         # UC-005: 로컬 데이터셋/백본 가중치 유효성 점검 유틸리티
 └── report.py               # UC-006: 실행 결과 지표 취합 및 리더보드 출력 유틸리티

@@ -1,0 +1,35 @@
+meta:
+  name: mvtec_stfpm_grid
+  task: anomaly
+
+base_data: configs/anomaly/data/mvtec.yaml
+base_model: configs/anomaly/models/stfpm.yaml
+
+matrix:
+  data:
+    category:
+      - bottle
+      - cable
+      - capsule
+      - carpet
+      - grid
+      - hazelnut
+      - leather
+      - metal_nut
+      - pill
+      - screw
+      - tile
+      - toothbrush
+      - transistor
+      - wood
+      - zipper
+  model:
+    backbone:
+      - resnet18
+      - resnet50
+
+execution:
+  run_name_pattern: "stfpm_{model_backbone}_{data_category}"
+  output_root: "outputs/batch_mvtec_stfpm"
+  checkpoint_pattern: "outputs/{run_name}/checkpoints/best.pth"
+  split: test

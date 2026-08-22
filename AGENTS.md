@@ -84,9 +84,9 @@
 - 각 Task 폴더 하위에 `data/`, `models/`, `batch/`, `_base.yaml`을 격리 배치한다.
 
 ### 4. 직접 실행형 CLI 진입점 (`scripts/`)
-- `scripts/train.py`, `scripts/evaluate.py`, `scripts/predict.py`, `scripts/run_batch.py`를 단일 진입점으로 사용한다.
+- `scripts/train.py`, `scripts/evaluate.py`, `scripts/predict.py`, `scripts/batch.py`를 단일 진입점으로 사용한다.
 - **3단계 CLI 체계**:
-  1. 1급 표준 인자: `--data`, `--model`, `--epochs`, `--batch-size`, `--output-dir`, `--checkpoint`, `--resume`, `--seed`, `--device` 등
+  1. 1급 표준 인자: `--data`, `--model`, `--epochs`, `--batch_size`, `--output_dir`, `--checkpoint`, `--resume`, `--seed`, `--device` 등
   2. 동적 Selector: `--data.<key>`, `--model.<key>` (YAML 내 `selectors:` 템플릿과 연동)
   3. 범용 오버라이드: `--set <dotted.key>=<value>`
 

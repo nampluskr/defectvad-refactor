@@ -13,7 +13,7 @@ python scripts/evaluate.py --data <data.yaml> --model <model.yaml> --checkpoint 
 python scripts/predict.py --model <model.yaml> --checkpoint <ckpt.pth> --input <path> [옵션]
 
 # 다중 조건 배치 일괄 실행
-python scripts/run_batch.py --config <batch.yaml> --mode train|evaluate|predict|all
+python scripts/batch.py --config <batch.yaml> --mode train|evaluate|predict|all
 ```
 
 ---
@@ -70,7 +70,7 @@ python scripts/run_batch.py --config <batch.yaml> --mode train|evaluate|predict|
 ```text
 .
 ├── configs/                        # Task별 격리 설정 체계 (data/, models/, batch/)
-│   ├── anomaly/                    # Anomaly task (mvtec.yaml, stfpm.yaml, mvtec_matrix.yaml)
+│   ├── anomaly/                    # Anomaly task (mvtec.yaml, stfpm.yaml, mvtec_stfpm_grid.yaml)
 │   ├── classification/             # Classification task (cifar10.yaml, resnet18.yaml)
 │   ├── splits/                     # 데이터셋 분할 파일
 │   ├── assets.yaml                 # 로컬 자산 레지스트리
@@ -80,7 +80,7 @@ python scripts/run_batch.py --config <batch.yaml> --mode train|evaluate|predict|
 │   ├── train.py                    # 단일 조건 학습
 │   ├── evaluate.py                 # 단일 조건 평가
 │   ├── predict.py                  # 단일 조건 추론
-│   ├── run_batch.py                # 다중 조건 일괄 실행 (배치 러너)
+│   ├── batch.py                    # 다중 조건 일괄 실행 (배치 러너)
 │   ├── check_assets.py             # 로컬 자산 점검
 │   └── report.py                   # 지표 취합 리포트
 │
@@ -95,7 +95,7 @@ python scripts/run_batch.py --config <batch.yaml> --mode train|evaluate|predict|
     │       ├── metrics/            # 평가 지표 (torchmetrics 기반)
     │       ├── losses/             # 손실 함수
     │       └── postprocess/        # 후처리 및 시각화 (visualizer.py, smoother.py)
-    └── bench/                      # 배치 실행 엔진 (matrix.py, runner.py, control.py)
+    └── batch/                      # 배치 실행 엔진 (parser.py, runner.py, summary.py)
 ```
 
 ---
@@ -108,8 +108,8 @@ CLI 인터페이스는 사용 편의성과 유연성을 모두 확보하기 위�
 [CLI 인자 체계]
 ├── 1. 1급 표준 인자 (First-class Flags)
 │   ├── --data (-d), --model (-m) : 구성 파일 경로 (필수/준필수)
-│   ├── --epochs (-e), --batch-size (-b) : 핵심 학습 파라미터
-│   ├── --output-dir (-o), --run-name : 산출물 경로 및 실험 식별자
+│   ├── --epochs (-e), --batch_size (-b) : 핵심 학습 파라미터
+│   ├── --output_dir (-o), --run_name : 산출물 경로 및 실험 식별자
 │   ├── --checkpoint (-c), --resume : 가중치 로드 및 학습 재개
 │   ├── --input (-i), --split (-s) : 추론 대상 및 평가 split 지정
 │   └── --device, --seed : 실행 환경 제어
@@ -131,7 +131,7 @@ Data Config와 Model Config를 합성하여 모델을 학습하고 체크포인�
 python scripts/train.py \
   --data configs/anomaly/data/mvtec.yaml --data.category bottle \
   --model configs/anomaly/models/stfpm.yaml --model.backbone resnet50 \
-  --epochs 100 --batch-size 16 --output-dir outputs/anomaly_stfpm --run-name bottle_res50
+  --epochs 100 --batch_size 16 --output_dir outputs/anomaly_stfpm --run_name bottle_res50
 ```
 
 ### UC-002. 단일 조건 평가 (`scripts/evaluate.py`)
@@ -144,11 +144,11 @@ python scripts/evaluate.py \
   --split test
 ```
 
-### UC-003. 다중 조건 평가 및 일괄 실행 (`scripts/run_batch.py`)
+### UC-003. 다중 조건 평가 및 일괄 실행 (`scripts/batch.py`)
 여러 카테고리와 모델 조합을 매니페스트 또는 쉘 루프로 순회하며 일괄 실행한다.
 ```bash
-python scripts/run_batch.py \
-  --config configs/anomaly/batch/mvtec_matrix.yaml \
+python scripts/batch.py \
+  --config configs/anomaly/batch/mvtec_stfpm_grid.yaml \
   --mode evaluate
 ```
 
@@ -159,7 +159,7 @@ python scripts/predict.py \
   --model configs/anomaly/models/stfpm.yaml \
   --checkpoint outputs/anomaly_stfpm/bottle_res50/checkpoints/best.pth \
   --input /path/to/test/images \
-  --output-dir outputs/predictions
+  --output_dir outputs/predictions
 ```
 
 ### UC-005. 보조 유틸리티
@@ -171,7 +171,7 @@ python scripts/predict.py \
 ## 7. v0.2 범위 정의
 
 ### 포함 범위
-1. 스크립트 직접 실행 진입점 신설: `scripts/train.py`, `scripts/evaluate.py`, `scripts/predict.py`, `scripts/run_batch.py`.
+1. 스크립트 직접 실행 진입점 신설: `scripts/train.py`, `scripts/evaluate.py`, `scripts/predict.py`, `scripts/batch.py`.
 2. `python -m src` 구형 진입점 및 `src/cli/` 중복 실행 흐름 제거 및 통합.
 3. `configs/<task>/data/`, `configs/<task>/models/`, `configs/<task>/batch/` 구조로 설정 파일 재배치.
 4. `src/tasks/<task>/` 하위의 컴포넌트별 패키지화(`adapters/`, `datasets/`, `models/<model>/`, `transforms/`, `metrics/`, `losses/`, `postprocess/`).

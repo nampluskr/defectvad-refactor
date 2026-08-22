@@ -75,7 +75,7 @@ def test_evaluate_script():
             "--model.backbone", "resnet18",
             "--checkpoint", ckpt_path,
             "--split", "test",
-            "--output-dir", out_dir,
+            "--output_dir", out_dir,
             "--set", f"data.split.path={mock_split}",
             "--set", f"paths.dataset_root={tmp_dir}",
             "--set", f"paths.backbone_root={tmp_dir}",

@@ -63,7 +63,7 @@ def test_predict_script():
             "--model.backbone", "resnet18",
             "--checkpoint", ckpt_path,
             "--input", img_dir,
-            "--output-dir", out_dir,
+            "--output_dir", out_dir,
             "--set", f"paths.backbone_root={tmp_dir}",
             "--set", f"paths.dataset_root={tmp_dir}",
         ]
@@ -98,7 +98,7 @@ def test_predict_script():
             "--model.backbone", "resnet18",
             "--checkpoint", ckpt_path,
             "--input", img1_path,
-            "--output-dir", out_single,
+            "--output_dir", out_single,
             "--threshold", "0.2",
             "--set", f"paths.backbone_root={tmp_dir}",
             "--set", f"paths.dataset_root={tmp_dir}",

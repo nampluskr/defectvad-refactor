@@ -45,7 +45,7 @@ scripts/
 ├── train.py                # UC-001: 단일 조건 학습 진입점
 ├── evaluate.py             # UC-002: 단일 조건 평가 진입점
 ├── predict.py              # UC-003: 단일 조건 추론/시각화 진입점
-├── run_batch.py            # UC-004: 다중 조건 일괄 실행 진입점 (배치 러너)
+├── batch.py                # UC-004: 다중 조건 일괄 실행 진입점 (배치 러너)
 ├── check_assets.py         # UC-005: 로컬 데이터셋/백본 가중치 점검 유틸리티
 └── report.py               # UC-006: 실행 결과 비교표/리더보드 집계 유틸리티
 ```
@@ -56,7 +56,7 @@ scripts/
 src/
 ├── core/                   # Task-Agnostic 공통 프레임워크 엔진 (cv_boilerplate)
 ├── tasks/                  # Task별 어댑터, 데이터로더, 메트릭 (tasks/anomaly/ 등)
-├── bench/                  # 배치 실행 엔진 (매트릭스 전개, enforce_control 검증)
+├── batch/                  # 배치 실행 엔진 (매트릭스/케이스 전개, runner, summary)
 ├── cli/                    # CLI 파서 및 인자 정의 헬퍼
 ├── data/                   # 공통 데이터 유틸리티
 └── upstream/               # SSOT anomalib 원본 모델 코드 (수정 금지)
@@ -72,8 +72,8 @@ CLI 인자는 역할에 따라 3단계로 구분된다.
 [CLI 인자 체계]
 ├── 1. 1급 표준 인자 (First-class Flags)
 │   ├── --data (-d), --model (-m) : 구성 파일 경로
-│   ├── --epochs (-e), --batch-size (-b) : 핵심 파라미터
-│   ├── --output-dir (-o), --run-name : 산출물 저장소 및 식별자
+│   ├── --epochs (-e), --batch_size (-b) : 핵심 파라미터
+│   ├── --output_dir (-o), --run_name : 산출물 저장소 및 식별자
 │   ├── --checkpoint (-c), --resume : 가중치 로드 및 재개
 │   ├── --input (-i), --split (-s) : 추론 입력 및 평가 대상 split
 │   └── --device, --seed : 실행 환경 제어
@@ -104,9 +104,9 @@ python scripts/train.py \
   --data configs/anomaly/data/mvtec.yaml --data.category bottle \
   --model configs/anomaly/models/stfpm.yaml --model.backbone resnet50 \
   --epochs 100 \
-  --batch-size 16 \
-  --output-dir outputs/anomaly_stfpm \
-  --run-name bottle_res50_e100 \
+  --batch_size 16 \
+  --output_dir outputs/anomaly_stfpm \
+  --run_name bottle_res50_e100 \
   --seed 42
 
 # 3. 중단된 학습 재개 (Resume)
@@ -137,8 +137,8 @@ python scripts/evaluate.py \
   --model configs/anomaly/models/stfpm.yaml \
   --checkpoint outputs/anomaly_stfpm/bottle_res50_e100/checkpoints/best.pth \
   --split valid \
-  --batch-size 32 \
-  --output-dir outputs/eval_results/bottle_valid
+  --batch_size 32 \
+  --output_dir outputs/eval_results/bottle_valid
 
 # 3. 모델 변형(Backbone / Model Size)에 맞춘 평가
 python scripts/evaluate.py \
@@ -152,18 +152,18 @@ python scripts/evaluate.py \
 
 ---
 
-### UC-003. 다중 조건 평가 및 일괄 실행 (`scripts/run_batch.py`)
+### UC-003. 다중 조건 평가 및 일괄 실행 (`scripts/batch.py`)
 
 여러 카테고리와 모델 조합을 한 번에 일괄 평가/학습한다.
 
-#### 방법 A: 배치 매니페스트 기반 실행 (`scripts/run_batch.py`)
+#### 방법 A: 배치 매니페스트 기반 실행 (`scripts/batch.py`)
 
-배치 매니페스트 파일(`configs/anomaly/batch/mvtec_matrix.yaml`)에 정의된 모든 조합을 순회하며 일괄 평가를 수행한다.
+배치 매니페스트 파일(`configs/anomaly/batch/mvtec_stfpm_grid.yaml`)에 정의된 모든 조합을 순회하며 일괄 평가를 수행한다.
 
 ```bash
 # 전체 15개 카테고리 × 모델 4종 일괄 평가
-python scripts/run_batch.py \
-  --config configs/anomaly/batch/mvtec_matrix.yaml \
+python scripts/batch.py \
+  --config configs/anomaly/batch/mvtec_stfpm_grid.yaml \
   --mode evaluate
 ```
 
@@ -198,7 +198,7 @@ for cat in bottle grid leather tile; do
     --data configs/anomaly/data/mvtec.yaml --data.category $cat \
     --model configs/anomaly/models/stfpm.yaml \
     --checkpoint outputs/exp_${cat}_stfpm/checkpoints/best.pth \
-    --output-dir outputs/eval_results/${cat}
+    --output_dir outputs/eval_results/${cat}
 done
 
 # 결과 집계 리포트 생성
@@ -218,7 +218,7 @@ python scripts/predict.py \
   --model configs/anomaly/models/stfpm.yaml \
   --checkpoint outputs/anomaly_stfpm/bottle_res50_e100/checkpoints/best.pth \
   --input /mnt/d/datasets/mvtec/bottle/test/broken_large \
-  --output-dir outputs/predictions/bottle_broken_large \
+  --output_dir outputs/predictions/bottle_broken_large \
   --device cuda
 ```
 
@@ -295,11 +295,11 @@ selectors:
 ## 6. v0.2 범위 정의
 
 ### 포함 범위
-1. 스크립트 직접 실행 진입점 신설: `scripts/train.py`, `scripts/evaluate.py`, `scripts/predict.py`, `scripts/run_batch.py`.
-2. `python -m src` 구형 진입점 및 `src/cli/` 중복 실행 흐름 제거 및 통합.
-3. `configs/<task>/data/`, `configs/<task>/models/`, `configs/<task>/batch/` 구조로 설정 파일 재구성.
-4. Data/Model Config 분리 및 동적 `selectors` 해석 엔진(`apply_selectors`) 구현.
-5. 단일 평가(`evaluate.py`) 및 다중 평가(`run_batch.py --mode evaluate`) 파이프라인 완성.
+1. 스크립트 직접 실행 진입점 신설: `scripts/train.py`, `scripts/evaluate.py`, `scripts/predict.py`, `scripts/batch.py`.
+2. config 해석 엔진 `resolve_config()`에 selector 해석 및 derived key 합성 로직 구현.
+3. core 엔진/어댑터 계약 확정: `core/engine.py`가 Anomaly task의 lifecycle hooks(`train_step`, `eval_step`, `on_fit_start`, `on_fit_end`, `configure_optimizers`)를 pure-PyTorch로 오케스트레이션.
+4. MVTec AD 단일 학습(`train.py`) 파이프라인 완성.
+5. 단일 평가(`evaluate.py`) 및 다중 평가(`batch.py --mode evaluate`) 파이프라인 완성.
 6. Anomaly task (STFPM, EfficientAD) 및 MVTec AD 단일/다중 조건 검증.
 
 ---

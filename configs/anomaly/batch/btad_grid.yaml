@@ -1,0 +1,22 @@
+meta:
+  name: btad_grid
+  task: anomaly
+
+base_data: configs/anomaly/data/btad.yaml
+base_model: configs/anomaly/models/stfpm.yaml
+
+matrix:
+  data:
+    category:
+      - "01"
+      - "02"
+      - "03"
+  model:
+    backbone:
+      - resnet18
+
+execution:
+  run_name_pattern: "stfpm_{model_backbone}_btad_{data_category}"
+  output_root: "outputs/batch_btad"
+  checkpoint_pattern: "outputs/{run_name}/checkpoints/best.pth"
+  split: test

@@ -1,0 +1,49 @@
+meta:
+  name: mvtec_hetero_cases
+  task: anomaly
+
+base_data: configs/anomaly/data/mvtec.yaml
+base_model: configs/anomaly/models/stfpm.yaml
+
+# Individual cases list (List of Dict style, roi-corner-detection paradigm)
+cases:
+  # Case 1: STFPM + bottle (ResNet-18)
+  - name: bottle_stfpm_res18
+    data_selectors:
+      category: bottle
+    model_selectors:
+      backbone: resnet18
+    overrides:
+      - train.epochs=10
+      - optim.optimizer.params.lr=0.4
+
+  # Case 2: STFPM + carpet (ResNet-50)
+  - name: carpet_stfpm_res50
+    data_selectors:
+      category: carpet
+    model_selectors:
+      backbone: resnet50
+    overrides:
+      - train.epochs=10
+
+  # Case 3: EfficientAD + capsule (small)
+  - name: capsule_effad_small
+    model: configs/anomaly/models/efficientad.yaml
+    data_selectors:
+      category: capsule
+    model_selectors:
+      size: small
+    overrides:
+      - train.epochs=10
+
+  # Case 4: VisA candle with STFPM
+  - name: visa_candle_stfpm
+    data: configs/anomaly/data/visa.yaml
+    data_selectors:
+      category: candle
+    model_selectors:
+      backbone: resnet18
+
+execution:
+  output_root: "outputs/batch_mvtec_cases"
+  split: test

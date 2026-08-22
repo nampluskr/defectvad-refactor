@@ -75,7 +75,7 @@ python scripts/train.py \
 python scripts/train.py --config configs/toy/toy_cls.yaml
 
 # 실행 전에 최종 config만 확인
-python scripts/train.py --data ... --model ... --print-config
+python scripts/train.py --data ... --model ... --print_config
 ```
 
 ### 3.2. 인자 목록
@@ -90,7 +90,7 @@ python scripts/train.py --data ... --model ... --print-config
 | `--<section>.<key> VALUE` | config 값 덮어쓰기. 해석 규칙은 §3.3 |
 | `--set KEY=VALUE` | 점 표기 전체 경로로 덮어쓰기. 반복 가능 |
 | `--resume PATH` | checkpoint에서 이어 학습 |
-| `--print-config` | 최종 해석 결과만 출력하고 종료 |
+| `--print_config` | 최종 해석 결과만 출력하고 종료 |
 | `--log-level LEVEL` | 기본 `INFO` |
 
 ### 3.3. `--<section>.<key>` 해석 규칙
@@ -147,12 +147,12 @@ python scripts/predict.py  --data ... --model ... --checkpoint <path> --input <f
 
 `train`은 학습 후 valid 재평가를 하지 않는다. 현행 `src/cli/commands.py::train()`이 fit 이후 재평가까지 한 함수에서 처리하는 것과 다른 경계다.
 
-### 3.5. 다중 조건 — `scripts/run_batch.py`
+### 3.5. 다중 조건 — `scripts/batch.py`
 
 ```bash
-python scripts/run_batch.py --config configs/batch/<name>.yaml --mode train
-python scripts/run_batch.py --config configs/batch/<name>.yaml --mode all
-python scripts/run_batch.py --config configs/batch/<name>.yaml --mode evaluate --only ead_small_grid
+python scripts/batch.py --config configs/anomaly/batch/<name>.yaml --mode train
+python scripts/batch.py --config configs/anomaly/batch/<name>.yaml --mode all
+python scripts/batch.py --config configs/anomaly/batch/<name>.yaml --mode evaluate --only ead_small_grid
 ```
 
 | 인자 | 의미 |
@@ -178,10 +178,10 @@ python scripts/show_config.py --data ... --model ...    # config 미리보기
 | 기존 | 신규 |
 |---|---|
 | `train` / `evaluate` / `predict` | `scripts/train.py` / `evaluate.py` / `predict.py` |
-| `benchmark` | `scripts/run_batch.py --mode all` |
-| `leaderboard` | `scripts/make_leaderboard.py` |
+| `benchmark` | `scripts/batch.py --mode all` |
+| `leaderboard` | `scripts/report.py` |
 | `check-assets` | `scripts/check_assets.py` |
-| `config` | `scripts/show_config.py` 또는 각 스크립트의 `--print-config` |
+| `config` | `scripts/show_config.py` 또는 각 스크립트의 `--print_config` |
 
 ### 3.7. 폴더 구조
 
@@ -190,7 +190,7 @@ python scripts/show_config.py --data ... --model ...    # config 미리보기
 ```text
 scripts/                          # 사용자가 실행하는 것
 ├── train.py  evaluate.py  predict.py
-├── run_batch.py  make_leaderboard.py
+├── batch.py  report.py
 ├── check_assets.py  show_config.py
 └── generate_mvtec_splits.py  generate_oxford_pets_*.py   (기존)
 
@@ -200,7 +200,7 @@ tools/                            # CI·검증 게이트 (scripts/에서 이동)
 
 분리 기준은 **누가 언제 실행하는가**다. `scripts/`는 사용자가 작업 중 직접 치는 명령, `tools/`는 커밋 전이나 Phase 검증에서 도는 게이트다. 현재 `scripts/`에는 둘이 섞여 있어 폴더를 열어도 실행할 것을 골라낼 수 없다.
 
-다중 조건 실행을 별도 최상위 폴더(`batch/`)로 빼지 않는다. `run_batch.py`도 사용자가 치는 명령이라는 점에서 `train.py`와 성격이 같고, 결과 조회인 `make_leaderboard.py`까지 넣으면 폴더 이름과 내용이 어긋난다. 단일과 배치의 구분은 폴더가 아니라 파일 이름과 `--mode`가 드러낸다.
+다중 조건 실행을 별도 최상위 폴더(`batch/`)로 빼지 않는다. `batch.py`도 사용자가 치는 명령이라는 점에서 `train.py`와 성격이 같고, 결과 조회인 `report.py`까지 넣으면 폴더 이름과 내용이 어긋난다. 단일과 배치의 구분은 폴더가 아니라 파일 이름과 `--mode`가 드러낸다.
 
 `scripts/`와 `tools/`에는 `__init__.py`를 두지 않는다. `src/`만 패키지로 유지한다.
 
@@ -235,7 +235,7 @@ config = interpolate(config)
 
 **2번이 1번을 이기는 것은 의도적이다.** dataset과 model은 완전히 직교하지 않는다. EfficientAD의 `data.batch_size: 1`과 `transform.normalize: false`는 논문이 정한 **모델의 요구사항**이지 데이터셋의 성질이 아니다. 모델 config가 data 값을 덮어쓸 수 있어야 이 제약을 모델 쪽에 적어 둔다.
 
-이 우선순위가 조용히 동작하면 위험하므로 `--print-config`가 **각 값의 출처 파일을 함께 출력**한다. 현행 `resolve_paths`가 `config["paths"]["_source"]`에 경로 해석 출처를 남기는 방식을 확장한다.
+이 우선순위가 조용히 동작하면 위험하므로 `--print_config`가 **각 값의 출처 파일을 함께 출력**한다. 현행 `resolve_paths`가 `config["paths"]["_source"]`에 경로 해석 출처를 남기는 방식을 확장한다.
 
 `meta.task_name`은 data config가 선언한다. 별도 `--task` 인자를 두지 않는다.
 
@@ -537,7 +537,7 @@ outputs/
 
 ## 7. 남은 결정
 
-- 모델 config가 data 값을 덮어쓸 때(§4.1) 이를 실행 로그로도 알릴지, `--print-config`의 출처 표기로만 남길지.
+- 모델 config가 data 값을 덮어쓸 때(§4.1) 이를 실행 로그로도 알릴지, `--print_config`의 출처 표기로만 남길지.
 - `--<section>.<key>`에서 같은 이름이 최상위와 `params` 양쪽에 있을 때. 규칙 1번(최상위)이 이기되 경고를 남기는 것으로 충분한지.
 - model config가 실수로 `data`/`metrics`/`loss` 최상위 키를 갖는지 `validate_config`가 점검할지. EfficientAD처럼 의도적으로 갖는 경우가 있어 단순 금지는 안 된다.
 

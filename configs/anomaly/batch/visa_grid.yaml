@@ -1,0 +1,31 @@
+meta:
+  name: visa_grid
+  task: anomaly
+
+base_data: configs/anomaly/data/visa.yaml
+base_model: configs/anomaly/models/stfpm.yaml
+
+matrix:
+  data:
+    category:
+      - candle
+      - capsules
+      - cashew
+      - chewinggum
+      - fryum
+      - macaroni1
+      - macaroni2
+      - pcb1
+      - pcb2
+      - pcb3
+      - pcb4
+      - pipe_fryum
+  model:
+    backbone:
+      - resnet18
+
+execution:
+  run_name_pattern: "stfpm_{model_backbone}_visa_{data_category}"
+  output_root: "outputs/batch_visa"
+  checkpoint_pattern: "outputs/{run_name}/checkpoints/best.pth"
+  split: test

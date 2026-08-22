@@ -30,10 +30,10 @@ def main():
     parser.add_argument("-d", "--data", required=True, help="Path to dataset config YAML (e.g. configs/anomaly/data/mvtec.yaml)")
     parser.add_argument("--category", default="all", help="Category name or 'all'")
     parser.add_argument("--data.category", dest="data_category", default=None, help="Category selector override")
-    parser.add_argument("--dataset-root", default=None, help="Override dataset root directory")
+    parser.add_argument("--dataset_root", default=None, help="Override dataset root directory")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for splitting")
-    parser.add_argument("--out-dir", default=None, help="Output directory for split JSONs (defaults to directory in config)")
-    parser.add_argument("--local-config", default=None, help="Path to local.yaml")
+    parser.add_argument("--out_dir", default=None, help="Output directory for split JSONs (defaults to directory in config)")
+    parser.add_argument("--local_config", default=None, help="Path to local.yaml")
     parser.add_argument("--set", action="append", default=[], dest="overrides", help="Config overrides (key=value)")
     args = parser.parse_args()
 

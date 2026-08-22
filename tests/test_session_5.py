@@ -185,7 +185,7 @@ def test_btad_and_visa_integration():
             "--model.backbone", "resnet18",
             "--checkpoint", ckpt_path,
             "--split", "test",
-            "--output-dir", eval_out,
+            "--output_dir", eval_out,
             "--set", f"paths.backbone_root={tmp_dir}",
             "--set", f"paths.dataset_root={tmp_dir}",
             "--set", f"data.split.path={mock_split_btad}",
