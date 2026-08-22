@@ -1,7 +1,0 @@
-_base: _base.yaml
-model:
-  name: deeplabv3_resnet50_seg
-  params:
-    num_classes: 3
-    backbone_name: resnet50
-    weights_path: ${paths.backbone_root}/deeplabv3_resnet50_coco-cd0a2569.pth
