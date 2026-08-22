@@ -3,12 +3,28 @@ import numpy as np
 import torch
 from PIL import Image
 
+import csv
+
 from src.core.errors import LocalAssetError
 from src.core.registry import DATASETS
-from src.data.split import assert_disjoint, load_split_file
+from src.data.split import assert_disjoint, generate_ratio_split, load_split_file
 from .base import BaseAnomalyDataset
 
 TRAIN_PREFIX = "train_normal"
+VISA_CATEGORIES = [
+    "candle",
+    "capsules",
+    "cashew",
+    "chewinggum",
+    "fryum",
+    "macaroni1",
+    "macaroni2",
+    "pcb1",
+    "pcb2",
+    "pcb3",
+    "pcb4",
+    "pipe_fryum",
+]
 SUPPORTED_EXTENSIONS = [".JPG", ".jpg", ".png", ".PNG", ".jpeg", ".JPEG", ".bmp", ".BMP"]
 
 
@@ -113,3 +129,49 @@ class ViSAAnomaly(BaseAnomalyDataset):
             image = F.to_dtype(F.to_image(image), torch.float32, scale=True)
 
         return image, target
+
+    @classmethod
+    def generate_split(cls, dataset_root, category, seed=42, ratio=(0.0, 0.4, 0.6), csv_path=None):
+        csv_file = csv_path or os.path.join(dataset_root, "split_csv", "1cls.csv")
+        if not os.path.isfile(csv_file):
+            raise LocalAssetError(
+                f"VisA split CSV not found at '{csv_file}'."
+            )
+
+        with open(csv_file, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = [r for r in reader if r["object"] == category]
+
+        if not rows:
+            raise LocalAssetError(
+                f"VisA category '{category}' not found in CSV '{csv_file}'."
+            )
+
+        train_ids = []
+        test_ids = []
+        defect_types = []
+
+        for item in rows:
+            split_name = item["split"].lower()
+            label = item["label"].lower()
+            stem = os.path.splitext(os.path.basename(item["image"]))[0]
+
+            if split_name == "train":
+                train_ids.append(f"{TRAIN_PREFIX}/{stem}")
+            else:
+                type_prefix = "Normal" if label == "normal" else "Anomaly"
+                test_ids.append(f"{type_prefix}/{stem}")
+                defect_types.append(label)
+
+        ratio_split = generate_ratio_split(
+            test_ids,
+            ratio={"train": ratio[0], "valid": ratio[1], "test": ratio[2]},
+            seed=seed,
+            stratify_by=defect_types,
+        )
+
+        return {
+            "train": sorted(train_ids),
+            "valid": sorted(ratio_split["valid"]),
+            "test": sorted(ratio_split["test"]),
+        }

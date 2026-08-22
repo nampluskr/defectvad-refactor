@@ -70,6 +70,24 @@ class EfficientAdAdapter(AnomalyAdapter):
         return images.to(device)
 
     def on_fit_start(self, model, loaders, device):
+        train_loader = loaders.get("train")
+        if train_loader is not None and train_loader.batch_size != 1:
+            raise ValueError(
+                f"EfficientAD requires batch_size=1 according to the paper, got batch_size={train_loader.batch_size}."
+            )
+
+        if train_loader is not None:
+            train_ds = getattr(train_loader, "dataset", None)
+            tf = getattr(train_ds, "transform", None)
+            if tf is not None and hasattr(tf, "compose"):
+                from torchvision.transforms import v2
+                for step in tf.compose.transforms:
+                    if isinstance(step, (v2.Normalize, transforms.Normalize)):
+                        raise ValueError(
+                            "Transforms for EfficientAD should not contain Normalize. "
+                            "EfficientAD model internally normalizes input with ImageNet mean/std."
+                        )
+
         load_local_weights(model.teacher, model.teacher_weights_path, strict=True)
 
         sample_images, _ = next(iter(loaders["train"]))

@@ -7,8 +7,8 @@
 ## 1. 핵심 설계 원칙
 
 1. **Task-Agnostic 공통 계층 (`src/core/`)**: 범용 컴퓨터 비전 프레임워크인 `cv_boilerplate`의 핵심 엔진(`engine.py`, `config.py`, `checkpoint.py` 등)은 특정 task(anomaly, classification 등)의 도메인 지식을 갖지 않는다.
-2. **Task 격리형 Config 체계 (`configs/<task>/`)**: 각 Task별로 `data/`, `models/`, `batch/`를 하위에 격리하여 데이터셋과 모델을 $M \times N$으로 직교 조합한다.
-3. **완전 폴더 모듈화 Task 구조 (`src/tasks/<task>/`)**: 모든 Task 컴포넌트(`adapters/`, `datasets/`, `models/<model>/`, `transforms/`, `metrics/`, `losses/`, `postprocess/`)를 독립 패키지 폴더로 격리한다.
+2. **Task 격리형 Config 체계 (`configs/<task>/`)**: 각 Task별로 `data/`, `models/`, `splits/`, `batch/`를 하위에 격리하여 데이터셋과 모델을 $M \times N$으로 직교 조합한다.
+3. **완전 폴더 모듈화 Task 구조 (`src/tasks/<task>/`)**: 모든 Task 컴포넌트(`adapters/`, `datasets/`, `models/<model>/`, `transforms/`, `metrics/`, `losses/`, `postprocess/`)를 독립 패키지 폴더로 격리하며, 데이터셋 클래스가 로딩과 분할 생성을 함께 소유(Cohesion)한다.
 4. **순수 PyTorch `nn.Module` 모델 자립성 및 SSOT (`src/tasks/<task>/models/<model>/`)**:
    - 모든 모델은 `models/<model_name>/` 하위의 독립 패키지로 위치하며 `torch.nn.Module`을 상속한다.
    - **원칙 1 적용**: `src/tasks/anomaly/models/` 하위의 anomalib 기반 순수 PyTorch 코드는 SSOT(단일 진실 공급원)로 취급하며, import 경로 외에는 수정하지 않는다. 별도의 `upstream/` 폴더를 두지 않고 `models/`가 직접 SSOT 역할을 수행한다.
@@ -20,8 +20,8 @@
 
 ```text
 .
-├── configs/                # Task별 설정 파일 (Data, Model, Batch, Base)
-├── scripts/                # 사용자 직접 실행 스크립트 (학습, 평가, 추론, 배치)
+├── configs/                # Task별 설정 및 분할 파일 (Data, Model, Splits, Batch, Base)
+├── scripts/                # 사용자 직접 실행 스크립트 (학습, 평가, 추론, 분할 생성, 배치)
 ├── src/                    # 제품 소스 코드 (프레임워크 코어, 태스크 패키지)
 ├── docs/                   # 개발 및 사용자 문서
 │   ├── dev/                # 버전별 개발 문서 체인 (BRIEF, PRD, SPEC, PLAN 등)
@@ -37,7 +37,7 @@
 
 ### 3.1. `configs/` (설정 영역)
 
-Task 간 설정을 격리하고 Data, Model, Batch 매니페스트를 직교적으로 조합할 수 있도록 `configs/<task>/` 하위에 `data/`, `models/`, `batch/`를 각각 위치시킨다.
+Task 간 설정을 격리하고 Data, Model, Batch 매니페스트를 직교적으로 조합할 수 있도록 `configs/<task>/` 하위에 `data/`, `models/`, `splits/`, `batch/`를 각각 위치시킨다.
 
 ```text
 configs/
@@ -45,22 +45,17 @@ configs/
 │   ├── _base.yaml                  # Task 공통 기본값 (runtime, metrics, optim 등)
 │   ├── data/                       # 데이터셋 정의 (전처리, 경로, selector)
 │   │   ├── mvtec.yaml              # MVTec AD 데이터셋 및 category selector
-│   │   ├── btad.yaml               # (v0.3 확장)
-│   │   └── visa.yaml               # (v0.3 확장)
+│   │   ├── btad.yaml               # BTAD 데이터셋 및 category selector
+│   │   └── visa.yaml               # VisA 데이터셋 및 category selector
 │   ├── models/                     # 모델 아키텍처 정의
 │   │   ├── stfpm.yaml              # STFPM 모델 및 backbone selector
 │   │   └── efficientad.yaml        # EfficientAD 모델 및 model_size selector
+│   ├── splits/                     # Anomaly Task 데이터셋 분할 파일 (train/valid/test JSON)
+│   │   ├── mvtec_bottle.json (15종)
+│   │   ├── btad_01.json (3종)
+│   │   └── visa_candle.json (12종)
 │   └── batch/                      # 다중 조건 배치 매니페스트
 │       └── mvtec_matrix.yaml       # MVTec 다중 카테고리/모델 실행 매트릭스
-├── classification/                 # Classification Task
-│   ├── _base.yaml
-│   ├── data/ (cifar10.yaml)
-│   ├── models/ (resnet18.yaml)
-│   └── batch/ (cifar10_matrix.yaml)
-├── detection/ & segmentation/      # Detection / Segmentation Task
-├── splits/                         # 데이터셋 분할 파일 (train/valid/test JSON)
-│   ├── mvtec_bottle.json
-│   └── ...
 ├── assets.yaml                     # 로컬 자산 경로 레지스트리
 └── local.example.yaml              # 로컬 머신별 경로 오버라이드 템플릿
 ```
@@ -77,6 +72,7 @@ scripts/
 ├── evaluate.py             # UC-002: 단일 조건 평가 진입점
 ├── predict.py              # UC-003: 단일 조건 추론 및 시각화 진입점
 ├── run_batch.py            # UC-004: 다중 조건 일괄 실행 진입점 (배치 러너)
+├── generate_splits.py      # 데이터셋 분할 파일(train/valid/test JSON) 생성 CLI 진입점
 ├── check_assets.py         # UC-005: 로컬 데이터셋/백본 가중치 유효성 점검 유틸리티
 └── report.py               # UC-006: 실행 결과 지표 취합 및 리더보드 출력 유틸리티
 ```
@@ -96,10 +92,10 @@ src/tasks/<task_name>/
 │   ├── base.py                     # Task 공통 베이스 어댑터 (예: AnomalyAdapter)
 │   └── <model_name>.py             # (선택) 모델별 전용 훅 어댑터 (stfpm.py, efficientad.py)
 │
-├── datasets/                       # 데이터셋 로더 패키지
+├── datasets/                       # 데이터셋 로더 패키지 (로딩 및 generate_split 동시 소유)
 │   ├── __init__.py
-│   ├── base.py                     # 데이터셋 베이스 클래스
-│   └── <dataset_name>.py           # 구체 데이터셋 클래스 (mvtec.py, btad.py 등)
+│   ├── base.py                     # 데이터셋 베이스 클래스 (BaseAnomalyDataset)
+│   └── <dataset_name>.py           # 구체 데이터셋 클래스 (mvtec.py, btad.py, visa.py)
 │
 ├── models/                         # [SSOT] 모델 패키지 (모델별 개별 폴더)
 │   ├── __init__.py                 # 하위 모델 팩토리 일괄 임포트
@@ -148,6 +144,7 @@ src/core/
 ├── context.py          # ExecutionContext (device, amp, seed, config 컨테이너)
 ├── builders.py         # build_model, build_optimizer, build_scheduler 팩토리
 ├── logger.py           # 콘솔 로거 및 metrics.json 기록기
+├── offline.py          # 로컬 가중치 로드 및 오프라인 네트워크 차단 가드
 ├── paths.py            # 로컬 자산 경로 검증 헬퍼
 └── errors.py           # ConfigError, AssetError 등 공통 예외 클래스
 ```

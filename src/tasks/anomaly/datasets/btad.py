@@ -5,10 +5,11 @@ from PIL import Image
 
 from src.core.errors import LocalAssetError
 from src.core.registry import DATASETS
-from src.data.split import assert_disjoint, load_split_file
+from src.data.split import assert_disjoint, generate_ratio_split, load_split_file
 from .base import BaseAnomalyDataset
 
 TRAIN_PREFIX = "train_ok"
+BTAD_CATEGORIES = ["01", "02", "03"]
 SUPPORTED_EXTENSIONS = [".bmp", ".png", ".jpg", ".jpeg", ".BMP", ".PNG", ".JPG"]
 
 
@@ -114,3 +115,52 @@ class BTADAnomaly(BaseAnomalyDataset):
             image = F.to_dtype(F.to_image(image), torch.float32, scale=True)
 
         return image, target
+
+    @classmethod
+    def generate_split(cls, dataset_root, category, seed=42, ratio=(0.0, 0.4, 0.6)):
+        category_str = str(category).zfill(2)
+        category_dir = os.path.join(dataset_root, category_str)
+        train_dir = os.path.join(category_dir, "train", "ok")
+        test_ok_dir = os.path.join(category_dir, "test", "ok")
+        test_ko_dir = os.path.join(category_dir, "test", "ko")
+
+        if not os.path.isdir(category_dir) or not os.path.isdir(train_dir):
+            raise LocalAssetError(
+                f"BTAD category '{category_str}' not found under '{dataset_root}'."
+            )
+
+        valid_exts = {ext.lower() for ext in SUPPORTED_EXTENSIONS}
+        train_files = sorted(os.listdir(train_dir)) if os.path.isdir(train_dir) else []
+        train_ids = [
+            f"{TRAIN_PREFIX}/{os.path.splitext(name)[0]}"
+            for name in train_files
+            if os.path.splitext(name)[1].lower() in valid_exts
+        ]
+
+        test_ids = []
+        defect_types = []
+
+        if os.path.isdir(test_ok_dir):
+            for name in sorted(os.listdir(test_ok_dir)):
+                if os.path.splitext(name)[1].lower() in valid_exts:
+                    test_ids.append(f"ok/{os.path.splitext(name)[0]}")
+                    defect_types.append("ok")
+
+        if os.path.isdir(test_ko_dir):
+            for name in sorted(os.listdir(test_ko_dir)):
+                if os.path.splitext(name)[1].lower() in valid_exts:
+                    test_ids.append(f"ko/{os.path.splitext(name)[0]}")
+                    defect_types.append("ko")
+
+        ratio_split = generate_ratio_split(
+            test_ids,
+            ratio={"train": ratio[0], "valid": ratio[1], "test": ratio[2]},
+            seed=seed,
+            stratify_by=defect_types,
+        )
+
+        return {
+            "train": sorted(train_ids),
+            "valid": sorted(ratio_split["valid"]),
+            "test": sorted(ratio_split["test"]),
+        }

@@ -5,10 +5,27 @@ from PIL import Image
 
 from src.core.errors import LocalAssetError
 from src.core.registry import DATASETS
-from src.data.split import assert_disjoint, load_split_file
+from src.data.split import assert_disjoint, generate_ratio_split, load_split_file
 from .base import BaseAnomalyDataset
 
 TRAIN_PREFIX = "train_good"
+MVTEC_CATEGORIES = [
+    "bottle",
+    "cable",
+    "capsule",
+    "carpet",
+    "grid",
+    "hazelnut",
+    "leather",
+    "metal_nut",
+    "pill",
+    "screw",
+    "tile",
+    "toothbrush",
+    "transistor",
+    "wood",
+    "zipper",
+]
 
 
 @DATASETS.register("mvtec_anomaly")
@@ -101,3 +118,41 @@ class MVTecAnomaly(BaseAnomalyDataset):
             image = F.to_dtype(F.to_image(image), torch.float32, scale=True)
 
         return image, target
+
+    @classmethod
+    def generate_split(cls, dataset_root, category, seed=42, ratio=(0.0, 0.4, 0.6)):
+        category_dir = os.path.join(dataset_root, category)
+        train_good_dir = os.path.join(category_dir, "train", "good")
+        test_dir = os.path.join(category_dir, "test")
+
+        if not os.path.isdir(train_good_dir) or not os.path.isdir(test_dir):
+            raise LocalAssetError(
+                f"MVTec category '{category}' not found under '{dataset_root}'."
+            )
+
+        train_files = sorted(os.listdir(train_good_dir))
+        train_ids = [f"{TRAIN_PREFIX}/{os.path.splitext(f)[0]}" for f in train_files if f.lower().endswith(".png")]
+
+        test_ids = []
+        defect_types = []
+        for defect in sorted(os.listdir(test_dir)):
+            defect_path = os.path.join(test_dir, defect)
+            if not os.path.isdir(defect_path):
+                continue
+            for f in sorted(os.listdir(defect_path)):
+                if f.lower().endswith(".png"):
+                    test_ids.append(f"{defect}/{os.path.splitext(f)[0]}")
+                    defect_types.append(defect)
+
+        ratio_split = generate_ratio_split(
+            test_ids,
+            ratio={"train": ratio[0], "valid": ratio[1], "test": ratio[2]},
+            seed=seed,
+            stratify_by=defect_types,
+        )
+
+        return {
+            "train": sorted(train_ids),
+            "valid": sorted(ratio_split["valid"]),
+            "test": sorted(ratio_split["test"]),
+        }

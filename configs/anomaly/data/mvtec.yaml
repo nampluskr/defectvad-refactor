@@ -14,7 +14,7 @@ data:
   drop_last: false
   split:
     mode: file
-    path: configs/splits/mvtec_bottle.json
+    path: configs/anomaly/splits/mvtec_bottle.json
   transform:
     train:
       name: anomaly_default
@@ -26,4 +26,4 @@ data:
 selectors:
   category:
     data.params.category: "{value}"
-    data.split.path: "configs/splits/mvtec_{value}.json"
+    data.split.path: "configs/anomaly/splits/mvtec_{value}.json"

@@ -10,8 +10,11 @@ BUILDERS.register("sgd")(lambda target, **params: torch.optim.SGD(target, **para
 
 
 @BUILDERS.register("cosine")
-def build_cosine_scheduler(target, t_max, eta_min=0.0, **params):
-    return torch.optim.lr_scheduler.CosineAnnealingLR(target, T_max=t_max, eta_min=eta_min)
+def build_cosine_scheduler(target, t_max=None, T_max=None, eta_min=0.0, **params):
+    max_t = t_max if t_max is not None else T_max
+    if max_t is None:
+        max_t = params.get("t_max", params.get("T_max", 100))
+    return torch.optim.lr_scheduler.CosineAnnealingLR(target, T_max=max_t, eta_min=eta_min)
 
 
 @BUILDERS.register("step")

@@ -53,7 +53,7 @@ def test_session_1():
 
         assert cfg["meta"]["task_name"] == "anomaly"
         assert cfg["data"]["params"]["category"] == "bottle"
-        assert cfg["data"]["split"]["path"] == "configs/splits/mvtec_bottle.json"
+        assert cfg["data"]["split"]["path"] == "configs/anomaly/splits/mvtec_bottle.json"
         assert cfg["model"]["params"]["backbone"] == "resnet18"
         assert cfg["model"]["params"]["weights_path"] == f"{tmp_dir}/resnet18-f37072fd.pth"
         assert cfg["runtime"]["seed"] == 99
@@ -69,7 +69,7 @@ def test_session_1():
             local_config_path=mock_local_yaml,
         )
         assert cfg_alt["data"]["params"]["category"] == "grid"
-        assert cfg_alt["data"]["split"]["path"] == "configs/splits/mvtec_grid.json"
+        assert cfg_alt["data"]["split"]["path"] == "configs/anomaly/splits/mvtec_grid.json"
         assert cfg_alt["model"]["params"]["backbone"] == "resnet50"
         assert cfg_alt["model"]["params"]["weights_path"] == f"{tmp_dir}/resnet50-0676ba61.pth"
         print("Alternative selector (grid/resnet50) resolution: PASSED")

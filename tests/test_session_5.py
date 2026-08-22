@@ -25,7 +25,7 @@ def test_btad_and_visa_integration():
     # Check BTAD splits
     btad_cats = ["01", "02", "03"]
     for cat in btad_cats:
-        split_path = f"configs/splits/btad_{cat}.json"
+        split_path = f"configs/anomaly/splits/btad_{cat}.json"
         assert os.path.isfile(split_path), f"Split file not found: {split_path}"
         split_dict = load_split_file(split_path)
         assert_disjoint(split_dict)
@@ -39,7 +39,7 @@ def test_btad_and_visa_integration():
         "macaroni1", "macaroni2", "pcb1", "pcb2", "pcb3", "pcb4", "pipe_fryum"
     ]
     for cat in visa_cats:
-        split_path = f"configs/splits/visa_{cat}.json"
+        split_path = f"configs/anomaly/splits/visa_{cat}.json"
         assert os.path.isfile(split_path), f"Split file not found: {split_path}"
         split_dict = load_split_file(split_path)
         assert_disjoint(split_dict)
@@ -55,7 +55,7 @@ def test_btad_and_visa_integration():
         model_selectors={"backbone": "resnet18"},
     )
     assert cfg_btad["data"]["params"]["category"] == "02"
-    assert cfg_btad["data"]["split"]["path"] == "configs/splits/btad_02.json"
+    assert cfg_btad["data"]["split"]["path"] == "configs/anomaly/splits/btad_02.json"
 
     cfg_visa = resolve_config(
         data_path="configs/anomaly/data/visa.yaml",
@@ -64,7 +64,7 @@ def test_btad_and_visa_integration():
         model_selectors={"backbone": "resnet18"},
     )
     assert cfg_visa["data"]["params"]["category"] == "pcb1"
-    assert cfg_visa["data"]["split"]["path"] == "configs/splits/visa_pcb1.json"
+    assert cfg_visa["data"]["split"]["path"] == "configs/anomaly/splits/visa_pcb1.json"
 
     print("--- 3. Testing Dataset Contract and DataLoader with Real Assets ---")
     # BTAD 01 dataset loading if asset exists

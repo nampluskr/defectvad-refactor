@@ -15,4 +15,7 @@ class StfpmAdapter(AnomalyAdapter):
         images = batch[0].to(device)
         teacher_features, student_features = model(images)
         loss = self.stfpm_loss(teacher_features, student_features)
-        return {"loss": loss, "loss_dict": {"loss": float(loss.item())}}
+        batch_size = images.shape[0]
+        if batch_size > 0:
+            loss = loss / batch_size
+        return {"loss": loss, "loss_dict": {"loss": float(loss.detach())}}

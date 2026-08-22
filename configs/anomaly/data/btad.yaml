@@ -14,7 +14,7 @@ data:
   drop_last: false
   split:
     mode: file
-    path: configs/splits/btad_01.json
+    path: configs/anomaly/splits/btad_01.json
   transform:
     train:
       name: anomaly_default
@@ -26,4 +26,4 @@ data:
 selectors:
   category:
     data.params.category: "{value}"
-    data.split.path: "configs/splits/btad_{value}.json"
+    data.split.path: "configs/anomaly/splits/btad_{value}.json"

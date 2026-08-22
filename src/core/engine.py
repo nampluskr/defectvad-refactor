@@ -140,8 +140,9 @@ class Engine:
             for key, value in step_out.get("loss_dict", {}).items():
                 loss_dict_sum[key] = loss_dict_sum.get(key, 0.0) + value * batch_count
 
+            running_loss = loss_scalar_sum / max(total_count, 1)
             lr = optimizer.param_groups[0]["lr"] if optimizer.param_groups else 0.0
-            pbar.set_postfix_str(f"loss={float(loss.detach()):.3f}, lr={lr:.1e}")
+            pbar.set_postfix_str(f"loss={running_loss:.3f}, lr={lr:.1e}")
 
         elapsed = time.perf_counter() - start
         loss_avg = {"loss": loss_scalar_sum / max(total_count, 1)}
