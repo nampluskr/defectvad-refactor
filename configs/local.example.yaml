@@ -1,0 +1,6 @@
+# Machine-specific path overrides.
+# Copy this file to configs/local.yaml and set actual local directories.
+# Priority: --set paths.<key> > DATASET_DIR/BACKBONE_DIR env vars > configs/local.yaml > _base.yaml defaults.
+paths:
+  dataset_root: /mnt/d/datasets
+  backbone_root: /mnt/d/backbones

@@ -1,0 +1,51 @@
+selectors:
+  size:
+    small:
+      model.params.model_size: small
+      model.params.weights_path: ${paths.backbone_root}/efficientad_pretrained_weights/pretrained_teacher_small.pth
+    medium:
+      model.params.model_size: medium
+      model.params.weights_path: ${paths.backbone_root}/efficientad_pretrained_weights/pretrained_teacher_medium.pth
+
+model:
+  name: efficientad_anomaly
+  params:
+    weights_path: ${paths.backbone_root}/efficientad_pretrained_weights/pretrained_teacher_small.pth
+    teacher_out_channels: 384
+    model_size: small
+    padding: false
+    pad_maps: true
+
+adapter:
+  name: efficientad
+  params:
+    smooth_sigma: 4.0
+    auxiliary_root: ${paths.dataset_root}/imagenette2/train
+    auxiliary_seed: 42
+
+optim:
+  optimizer:
+    name: adam
+    params:
+      lr: 0.0001
+      weight_decay: 0.00001
+  scheduler:
+    name: step
+    params:
+      step_size: 19
+      gamma: 0.1
+
+data:
+  batch_size: 1
+  transform:
+    train:
+      name: anomaly_default
+      params:
+        normalize: false
+    eval:
+      name: anomaly_default
+      params:
+        normalize: false
+
+train:
+  epochs: 20

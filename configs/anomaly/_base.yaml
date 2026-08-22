@@ -1,0 +1,39 @@
+meta:
+  task_name: anomaly
+
+paths:
+  dataset_root: /mnt/d/datasets
+  backbone_root: /mnt/d/backbones
+
+runtime:
+  seed: 42
+  device: cuda
+  amp: false
+  deterministic: warn
+  allow_network: false
+
+loss:
+  name: none
+  params: {}
+
+metrics:
+  - name: image_auroc
+    params: {}
+  - name: pixel_auroc
+    params: {}
+
+train:
+  epochs: 10
+  grad_clip: null
+  monitor:
+    metric: image_auroc
+    mode: max
+  log_interval: 10
+  save_last: true
+
+output:
+  root: outputs
+  run_name: null
+  save_predictions: true
+  save_visualizations: true
+  max_visualizations: 16

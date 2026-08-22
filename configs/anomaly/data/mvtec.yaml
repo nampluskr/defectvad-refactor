@@ -1,0 +1,29 @@
+_base: ../_base.yaml
+
+meta:
+  task_name: anomaly
+
+data:
+  name: mvtec_anomaly
+  root: ${paths.dataset_root}/mvtec
+  params:
+    category: bottle
+  image_size: [256, 256]
+  batch_size: 8
+  num_workers: 4
+  drop_last: false
+  split:
+    mode: file
+    path: configs/splits/mvtec_bottle.json
+  transform:
+    train:
+      name: anomaly_default
+      params: {}
+    eval:
+      name: anomaly_default
+      params: {}
+
+selectors:
+  category:
+    data.params.category: "{value}"
+    data.split.path: "configs/splits/mvtec_{value}.json"
