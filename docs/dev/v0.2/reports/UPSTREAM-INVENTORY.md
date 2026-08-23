@@ -651,14 +651,15 @@ PaDiM의 evaluate image AUROC 0.912는 valid(0.997)와 차이가 크다. 같은 
 | `--print_config` | 정상 (`metrics:` 기본 유지) | 정상 (`metrics: [image_auroc]`로 교체됨 확인) | 정상 (`adapter.params`에 하이퍼파라미터 없음 확인, §12.5) |
 | 합성 배치 스모크 | — | — | `on_fit_start`→centroid 초기화→4스텝 연속 `train_step`+`backward()` 성공, eval `pred_score`/`anomaly_map` shape 확인 |
 | 반대 벤더 적대적 검토 | Codex CLI 1회, Critical 0 | Codex CLI 1회, Critical 0 | Codex CLI 1회, Critical 0, Major 2건 수정(§12.4, §12.5) — 상세는 `docs/dev/v0.2/reviews/A1.md` |
-| 실제 학습 성능(bottle 등) | **사용자 실행 대기** | **사용자 실행 대기** | 사용자가 `train.py`(bottle) 실행해 완주 확인(수정 후). AUROC 등 수치는 미수집 — 정식 검증은 3개 카테고리로 별도 진행 |
+| train/evaluate/predict 실행 | 사용자 실행 확인(2026-08-23) | 사용자 실행 확인(2026-08-23) | 사용자 실행 확인(2026-08-23, §12.4 수정 후) |
+| 수치 기록(image/pixel AUROC 등) | 미수집 | 미수집 | 미수집 |
 
-DFM·DFKDE는 이 세션에서 실제 `scripts/train.py` 실행을 거치지 않았다 — registry 빌드와 `--print_config`, 그리고 (CFA에 한해) 합성 배치 스모크로 코드 경로만 검증했다. 실제 MVTec 데이터로 학습을 처음 돌린 것은 CFA뿐이며, 그 첫 실행에서 §12.4의 `retain_graph` 버그가 실제로 재현되었다 — 합성 스모크가 놓친 결함이다(§14 참조).
+DFM·DFKDE·CFA 세 모델 모두 사용자가 `scripts/train.py`·`evaluate.py`·`predict.py`를 직접 실행해 정상 동작을 확인했다(2026-08-23). 실제 MVTec 데이터로 학습을 가장 먼저 돌린 것은 CFA이며, 그 첫 실행에서 §12.4의 `retain_graph` 버그가 실제로 재현되었다 — 합성 스모크가 놓친 결함이었다. 세 모델 모두 image/pixel AUROC 등 구체적인 수치는 아직 기록되지 않았고, 3개 카테고리(bottle·carpet·capsule) 기준 정식 성능 비교는 별도 진행 예정이다(§14 참조).
 
 ## 14. 미완 항목
 
 - FastFlow `train.epochs: 100`은 잠정값이다. 핀된 클론에 `examples/configs`가 sparse-checkout되어 있지 않아 anomalib의 공식 학습 예산을 확인하지 못했다.
-- 3개 카테고리(bottle, carpet, capsule) 성능 검증 — **사용자 실행 대기**. PaDiM·Reverse Distillation·DFM·DFKDE·CFA 전부 포함.
+- 3개 카테고리(bottle, carpet, capsule) 기준 정식 성능 비교(수치 기록) — **사용자 실행 대기**. PaDiM·Reverse Distillation·DFM·DFKDE·CFA 전부 포함. DFM·DFKDE·CFA는 실행 자체(정상 동작)는 2026-08-23 확인됐으나 AUROC 등 수치는 아직 없다(§13.1).
 - PaDiM evaluate(test) image AUROC 0.912의 원인 확인 — split 구성 차이 가설 검증 필요 (§13).
 - 반대 벤더 CLI 적대적 검증 — FastFlow·PatchCore·PaDiM·Reverse Distillation은 미실행. DFM·DFKDE·CFA는 실행 완료(`reviews/A1.md`).
 - `requirements.txt`에 `FrEIA`·`kornia`·`scikit-learn`·`scipy`·`timm`·`omegaconf`·`einops` 누락 (§5).

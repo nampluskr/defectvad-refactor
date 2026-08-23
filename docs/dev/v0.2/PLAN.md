@@ -25,7 +25,7 @@
 | Density Estimation | DFM, DFKDE |
 | Feature Embedding / Memory Bank (gradient 학습) | CFA |
 
-DFM·DFKDE·CFA는 코드 포팅과 registry 등록, config 작성, offline 팩토리 구성을 완료했고, 반대 벤더(Codex CLI) 적대적 검증을 1회 거쳤다(`docs/dev/v0.2/reviews/A1.md`). CFA는 사용자가 실제로 `scripts/train.py`(bottle)를 실행해 학습이 정상 완주됨을 확인했다 — 이 과정에서 적대적 검토가 잡아내지 못한 결함 2건(YAML `1e-5` 파싱 함정, `CfaLoss.radius`의 non-leaf 텐서 재사용으로 인한 2스텝째 backward 실패)이 드러나 수정했다(`docs/dev/v0.2/reports/UPSTREAM-INVENTORY.md` §12.4). DFM·DFKDE는 아직 실제 학습을 실행하지 않았다. 3개 카테고리(bottle·carpet·capsule) 기준 정식 성능 검증은 여전히 사용자 실행 대기 상태다. 상세 구현 개요는 `docs/guides/anomaly-models.md` §3.7~§3.9를 참조한다.
+DFM·DFKDE·CFA는 코드 포팅과 registry 등록, config 작성, offline 팩토리 구성을 완료했고, 반대 벤더(Codex CLI) 적대적 검증을 1회 거쳤다(`docs/dev/v0.2/reviews/A1.md`). CFA는 사용자가 실제로 `scripts/train.py`(bottle)를 실행해 학습이 정상 완주됨을 확인했다 — 이 과정에서 적대적 검토가 잡아내지 못한 결함 2건(YAML `1e-5` 파싱 함정, `CfaLoss.radius`의 non-leaf 텐서 재사용으로 인한 2스텝째 backward 실패)이 드러나 수정했다(`docs/dev/v0.2/reports/UPSTREAM-INVENTORY.md` §12.4). 이후 사용자가 DFM·DFKDE·CFA 세 모델 모두 train/evaluate/predict를 직접 실행해 정상 동작을 확인했다(2026-08-23) — 구체적인 image/pixel AUROC 수치는 별도로 기록되지 않았다. 3개 카테고리(bottle·carpet·capsule) 기준 정식 성능 비교는 여전히 사용자 실행 대기 상태다. 상세 구현 개요는 `docs/guides/anomaly-models.md` §3.7~§3.9를 참조한다.
 
 CFA는 착수 전 우려했던 "backbone fine-tune으로 SSOT 전제가 흔들리는 사례"가 실제로는 발생하지 않았다: 모델 원본은 backbone을 얼린 채로 두지 않지만(anomalib 자체가 `model.parameters()` 전체를 optimizer에 넘김), forward가 항상 `torch.no_grad()`로 backbone을 실행하므로 그레이디언트가 도달하지 않는다. 이 프로젝트는 factory에서 backbone을 `requires_grad=False`로 명시적으로 고정해 다른 모델과 동일한 "backbone 고정" 관례를 유지했다 — 결과는 anomalib과 동일하다.
 
@@ -44,7 +44,7 @@ CFA는 착수 전 우려했던 "backbone fine-tune으로 SSOT 전제가 흔들�
 
 - 남은 순위 1~5(CFLOW·DRAEM·GANomaly·CS-Flow·DSR)의 확정 여부 — 사용자 승인 대기.
 - DRAEM 착수 전 원칙3(오프라인) 저촉 여부 재검토 필요 — synthetic anomaly 생성용 texture 데이터셋 로컬화 방법 확정 (표의 "리스크" 열 참조).
-- DFM·DFKDE·CFA의 3개 카테고리(bottle·carpet·capsule) 기준 정식 성능 검증 — 사용자가 `scripts/train.py`·`evaluate.py`·`predict.py`를 직접 실행해 확인 예정. CFA는 bottle 단일 실행으로 완주만 확인됐고 AUROC 등 수치는 아직 없다. 결과에 따라 config 하이퍼파라미터(특히 CFA `train.epochs`, DFM `score_type`)를 조정할 수 있다.
+- DFM·DFKDE·CFA는 세 스크립트(train/evaluate/predict) 실행 자체는 사용자가 확인했다(2026-08-23). 3개 카테고리(bottle·carpet·capsule) 기준 정식 성능 비교와 수치 기록은 아직 없다 — 필요 시 결과에 따라 config 하이퍼파라미터(특히 CFA `train.epochs`, DFM `score_type`)를 조정할 수 있다.
 - PatchCore·PaDiM·DFM·DFKDE의 `runtime.amp: true` 비호환 가능성, `weights_path=None` 시 silent random-init — 적대적 검토(A1)에서 지적됐으나 9개 모델에 걸친 기존 설계라 이번 세션에서는 수정하지 않았다. 별도 과제로 core 변경 필요 (`UPSTREAM-INVENTORY.md` §14).
 - 각 모델 착수 시 `.claude/skills/add-anomalib-model/SKILL.md` 절차를 그대로 따르되, 이 문서의 순서를 갱신한다.
 
