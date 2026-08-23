@@ -1,0 +1,47 @@
+model:
+  name: padim_anomaly
+  params:
+    backbone: resnet18
+    layers: [layer1, layer2, layer3]
+    weights_path: ${paths.backbone_root}/resnet18-f37072fd.pth
+    # null keeps the upstream paper defaults per backbone:
+    # resnet18 -> 100, wide_resnet50_2 -> 550.
+    n_features: null
+
+adapter:
+  name: padim
+  params:
+    # PaDiM의 AnomalyMapGenerator가 모델 내부에서 이미 GaussianBlur2d(sigma=4)를
+    # 적용한다(padim/anomaly_map.py:67). postprocess smoother를 끄면 blur가 정확히
+    # 한 번만 걸려 anomalib과 동등해진다. pred_score는 모델 내부에서 계산되므로
+    # 이 값은 pixel AUROC·pixel_threshold·시각화에만 영향을 준다.
+    smooth_sigma: 0
+
+optim:
+  # PaDiM does no gradient training -- anomalib's configure_optimizers returns
+  # None. The common engine always requires an optimizer, so one is declared here
+  # and is a guaranteed no-op: the backbone forward runs under torch.no_grad(), so
+  # every parameter gradient stays None and optimizer.step() changes nothing.
+  optimizer:
+    name: adam
+    params:
+      lr: 0.001
+
+train:
+  # anomalib trainer_arguments: max_epochs=1. A single pass over the training set
+  # fills the memory bank; the Gaussian is fitted once before the first validation,
+  # so further epochs would only re-collect embeddings that are never used.
+  epochs: 1
+  # anomalib trainer_arguments: gradient_clip_val=0 (no clipping).
+  grad_clip: null
+
+selectors:
+  backbone:
+    resnet18:
+      model.params.backbone: resnet18
+      model.params.weights_path: "${paths.backbone_root}/resnet18-f37072fd.pth"
+      model.params.n_features: 100
+    wide_resnet50_2:
+      model.params.backbone: wide_resnet50_2
+      model.params.weights_path: "${paths.backbone_root}/wide_resnet50_2-95faca4d.pth"
+      model.params.n_features: 550

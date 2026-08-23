@@ -1,0 +1,57 @@
+model:
+  name: reverse_distillation_anomaly
+  params:
+    backbone: wide_resnet50_2
+    layers: [layer1, layer2, layer3]
+    weights_path: ${paths.backbone_root}/wide_resnet50_2-95faca4d.pth
+    # input_size must match data.image_size below: AnomalyMapGenerator allocates
+    # the anomaly map canvas at this fixed resolution.
+    input_size: [256, 256]
+    # anomalib ReverseDistillation default is AnomalyMapGenerationMode.ADD.
+    anomaly_map_mode: add
+
+adapter:
+  name: reverse_distillation
+  params:
+    # Reverse Distillation's AnomalyMapGenerator already applies GaussianBlur2d
+    # (sigma=4) inside the model (reverse_distillation/anomaly_map.py:117). The
+    # postprocess smoother is disabled so blur is applied exactly once, matching
+    # anomalib. pred_score is computed inside the model, so this value affects
+    # only pixel AUROC, pixel_threshold and visualization.
+    smooth_sigma: 0
+
+optim:
+  # anomalib configure_optimizers: Adam over decoder + bottleneck parameters only,
+  # lr=0.005, betas=(0.5, 0.99), no scheduler. The factory freezes the encoder
+  # before build_optimizer runs, so the common single-group builder selects exactly
+  # that same parameter set.
+  optimizer:
+    name: adam
+    params:
+      lr: 0.005
+      betas: [0.5, 0.99]
+
+train:
+  # anomalib's trainer_arguments does not pin max_epochs; the RD4AD paper trains
+  # 200 epochs with this optimizer setting. Provisional -- this is the primary knob
+  # if image/pixel AUROC falls short of the reference.
+  epochs: 200
+  # anomalib trainer_arguments: gradient_clip_val=0 (no clipping).
+  grad_clip: null
+
+selectors:
+  backbone:
+    wide_resnet50_2:
+      model.params.backbone: wide_resnet50_2
+      model.params.weights_path: "${paths.backbone_root}/wide_resnet50_2-95faca4d.pth"
+    resnet18:
+      model.params.backbone: resnet18
+      model.params.weights_path: "${paths.backbone_root}/resnet18-f37072fd.pth"
+    resnet50:
+      model.params.backbone: resnet50
+      model.params.weights_path: "${paths.backbone_root}/resnet50-0676ba61.pth"
+  mode:
+    add:
+      model.params.anomaly_map_mode: add
+    multiply:
+      model.params.anomaly_map_mode: multiply

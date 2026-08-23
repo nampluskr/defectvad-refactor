@@ -9,7 +9,11 @@ model:
 adapter:
   name: patchcore
   params:
-    smooth_sigma: 4.0
+    # PatchCore의 AnomalyMapGenerator가 모델 내부에서 이미 GaussianBlur2d(sigma=4)를
+    # 적용한다(patchcore/anomaly_map.py:59). postprocess smoother를 끄면 blur가 정확히
+    # 한 번만 걸려 anomalib과 동등해진다. pred_score는 모델 내부에서 계산되므로
+    # 이 값은 pixel AUROC·pixel_threshold·시각화에만 영향을 준다.
+    smooth_sigma: 0
     # anomalib Patchcore(coreset_sampling_ratio=0.1)
     coreset_sampling_ratio: 0.1
 
