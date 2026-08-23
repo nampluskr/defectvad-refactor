@@ -1,0 +1,54 @@
+model:
+  name: cfa_anomaly
+  params:
+    backbone: wide_resnet50_2
+    weights_path: ${paths.backbone_root}/wide_resnet50_2-95faca4d.pth
+    gamma_c: 1
+    gamma_d: 1
+    num_nearest_neighbors: 3
+    num_hard_negative_features: 3
+    radius: 1.0e-5
+
+adapter:
+  name: cfa
+  params:
+    # CFA's AnomalyMapGenerator already applies GaussianBlur2d(sigma=4) inside
+    # the model (cfa/anomaly_map.py compute_anomaly_map). postprocess smoother
+    # disabled so blur is applied exactly once, matching anomalib.
+    #
+    # num_nearest_neighbors / num_hard_negative_features / radius are NOT
+    # declared here: CfaAdapter.on_fit_start reads them off the constructed
+    # CfaModel (model.params above) so CfaLoss can never disagree with the
+    # anomaly map about which hyperparameters it is optimizing for.
+    smooth_sigma: 0
+
+optim:
+  # anomalib configure_optimizers: AdamW over all CfaModel parameters,
+  # lr=1e-3, weight_decay=5e-4, amsgrad=True. The factory freezes the backbone
+  # before build_optimizer runs, so the common single-group builder selects only
+  # the descriptor (CoordConv2d) parameters -- the only ones anomalib's own
+  # forward ever back-propagates through, since the backbone always runs under
+  # torch.no_grad().
+  optimizer:
+    name: adamw
+    params:
+      lr: 0.001
+      weight_decay: 0.0005
+      amsgrad: true
+
+train:
+  # anomalib's trainer_arguments does not pin max_epochs; the CFA paper trains
+  # around 30 epochs on MVTec. Provisional -- this is the primary knob if
+  # image/pixel AUROC falls short of the reference.
+  epochs: 30
+  # anomalib trainer_arguments: gradient_clip_val=0 (no clipping).
+  grad_clip: null
+
+selectors:
+  backbone:
+    wide_resnet50_2:
+      model.params.backbone: wide_resnet50_2
+      model.params.weights_path: "${paths.backbone_root}/wide_resnet50_2-95faca4d.pth"
+    resnet18:
+      model.params.backbone: resnet18
+      model.params.weights_path: "${paths.backbone_root}/resnet18-f37072fd.pth"

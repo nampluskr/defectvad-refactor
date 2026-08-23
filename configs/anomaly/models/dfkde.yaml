@@ -1,0 +1,52 @@
+model:
+  name: dfkde_anomaly
+  params:
+    backbone: resnet18
+    layers: [layer4]
+    weights_path: ${paths.backbone_root}/resnet18-f37072fd.pth
+    n_pca_components: 16
+    feature_scaling_method: scale
+    max_training_points: 40000
+
+adapter:
+  name: dfkde
+  params:
+    # DFKDE produces an image-level score only -- DfkdeModel.forward never
+    # returns an anomaly map. smooth_sigma is unused by DfkdeAdapter (kept at
+    # 0 for clarity) and pixel metrics are dropped below.
+    smooth_sigma: 0
+
+# DFKDE has no anomaly map, so pixel_auroc cannot be computed. This model
+# config overrides the base metrics list to image_auroc only -- data configs
+# are not touched, matching the EfficientAD `data:`-block override pattern.
+metrics:
+  - name: image_auroc
+    params: {}
+
+optim:
+  # DFKDE does no gradient training -- anomalib's configure_optimizers returns
+  # None. The common engine always requires an optimizer, so one is declared here
+  # and is a guaranteed no-op: the backbone forward runs under torch.no_grad(), so
+  # every parameter gradient stays None and optimizer.step() changes nothing.
+  optimizer:
+    name: adam
+    params:
+      lr: 0.001
+
+train:
+  # anomalib trainer_arguments: max_epochs=1. A single pass over the training set
+  # fills the memory bank; the PCA + Gaussian-KDE classifier is fitted once
+  # before the first validation, so further epochs would only re-collect
+  # features that are never used.
+  epochs: 1
+  # anomalib trainer_arguments: gradient_clip_val=0 (no clipping).
+  grad_clip: null
+
+selectors:
+  backbone:
+    resnet18:
+      model.params.backbone: resnet18
+      model.params.weights_path: "${paths.backbone_root}/resnet18-f37072fd.pth"
+    wide_resnet50_2:
+      model.params.backbone: wide_resnet50_2
+      model.params.weights_path: "${paths.backbone_root}/wide_resnet50_2-95faca4d.pth"

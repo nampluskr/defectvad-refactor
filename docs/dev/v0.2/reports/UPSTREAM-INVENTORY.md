@@ -2,7 +2,9 @@
 
 선행 문서: [v0.1 UPSTREAM-INVENTORY](../../v0.1/reports/UPSTREAM-INVENTORY.md) · 절차: [MODEL-ADD](../../v0.1/reports/MODEL-ADD.md)
 
-v0.2에서 추가된 anomalib 복사본을 기록한다. 대상은 **FastFlow**, **PatchCore**, **PaDiM**, **Reverse Distillation**이며, STFPM·EfficientAD 행은 v0.1 문서가 SSOT이라 여기서 반복하지 않는다.
+v0.2에서 추가된 anomalib 복사본을 기록한다. 대상은 **FastFlow**, **PatchCore**, **PaDiM**, **Reverse Distillation**, **DFM**, **DFKDE**, **CFA**이며, STFPM·EfficientAD 행은 v0.1 문서가 SSOT이라 여기서 반복하지 않는다.
+
+**갱신 이력**: FastFlow·PatchCore·PaDiM·Reverse Distillation은 최초 작성 시점 기준. DFM·DFKDE·CFA는 §4.5~4.7, §4.8~4.9(갱신), §5(갱신), §10~12, §13~14(갱신)에서 이어서 기록한다.
 
 ## 1. v0.1 문서와의 차이
 
@@ -108,9 +110,40 @@ PaDiM이 재사용한 기존 components는 `feature_extractors/timm.py`, `featur
 
 모델 하위 패키지인 `reverse_distillation/components/__init__.py`는 복사하지 않았다. Lightning을 끌어오지는 않지만(`from .bottleneck import get_bottleneck_layer` 한 줄뿐), `components/` 아래에 `__init__.py`를 두지 않는 기존 관례를 유지하고 대신 `torch_model.py`의 import를 모듈 단위로 바꿨다(§4.5).
 
-### 4.5 허용된 변경 — import 경로 전량
+### 4.5 DFM
 
-CON-001이 허용하는 유일한 변경이다. 아래가 전부이며, 그 외 차이는 19개 파일 모두 0라인이다.
+| 대상 | 원본 | 줄 수 | sha256(16) | 허용 변경 |
+|---|---|---|---|---|
+| `dfm/torch_model.py` | `src/anomalib/models/image/dfm/torch_model.py` | 240 | `6df0c11e8d80f837` | import 4건 |
+| `components/dimensionality_reduction/pca.py` | `src/anomalib/models/components/dimensionality_reduction/pca.py` | 197 | `5098aabc22c09c6e` | import 1건 |
+
+재사용한 기존 components는 `feature_extractors/timm.py`, `base/dynamic_buffer.py`, `data/torch_base.py`이며 신규 복사는 `pca.py` 하나뿐이다.
+
+### 4.6 DFKDE
+
+| 대상 | 원본 | 줄 수 | sha256(16) | 허용 변경 |
+|---|---|---|---|---|
+| `dfkde/torch_model.py` | `src/anomalib/models/image/dfkde/torch_model.py` | 172 | `5ea1ba1242cde831` | import 3건 |
+| `components/classification/kde_classifier.py` | `src/anomalib/models/components/classification/kde_classifier.py` | 244 | `c01165f9b3b06ed6` | import 2건 |
+| `components/stats/kde.py` | `src/anomalib/models/components/stats/kde.py` | 147 | `c21bfa18c5f44ece` | import 1건 |
+
+DFM의 `pca.py`를 재사용한다(신규 복사 아님). `kde_classifier.py`가 `pca.py`와 `kde.py` 양쪽을 가져온다.
+
+### 4.7 CFA
+
+| 대상 | 원본 | 줄 수 | sha256(16) | 허용 변경 |
+|---|---|---|---|---|
+| `cfa/torch_model.py` | `src/anomalib/models/image/cfa/torch_model.py` | 572 | `d475d192566722b0` | import 3건 |
+| `cfa/anomaly_map.py` | `src/anomalib/models/image/cfa/anomaly_map.py` | 131 | `49628da66e4af4a9` | import 1건 |
+| `cfa/loss.py` | `src/anomalib/models/image/cfa/loss.py` | 87 | `ac2d8711bc540152` | 없음 |
+
+CFA는 `TimmFeatureExtractor`를 쓰지 않는다. `torch_model.py`의 module-level `get_feature_extractor`가 `torchvision.models.feature_extraction.create_feature_extractor`로 `torchvision.models.<backbone>`을 직접 감싼다 — PatchCore·PaDiM·Reverse Distillation과 다른 feature extraction 경로이며, no-download 처리도 다르다(§12.2). `components/`에서 신규로 재사용한 파일은 없다(`base/dynamic_buffer.py`, `filters/blur.py`, `data/torch_base.py`, `feature_extractors/utils.py` 모두 기존 파일 재사용).
+
+세 모델 모두 `__init__.py`와 `lightning_model.py`는 복사하지 않았다(§4.3과 동일한 사유). `dfm`·`dfkde`·`cfa` 세 디렉터리 모두 `__init__.py`를 두지 않는 기존 관례를 유지한다(팩토리 파일이 `models/<name>/__init__.py` 자체이므로 이 규칙과는 별개다).
+
+### 4.8 허용된 변경 — import 경로 전량
+
+CON-001이 허용하는 유일한 변경이다. 아래가 전부이며, 그 외 차이는 27개 파일 모두 0라인이다.
 
 | 파일 | 변경 후 |
 |---|---|
@@ -137,10 +170,24 @@ CON-001이 허용하는 유일한 변경이다. 아래가 전부이며, 그 외 
 | `reverse_distillation/torch_model.py` | `from .components.bottleneck import get_bottleneck_layer` (하위 패키지 `__init__` 우회) |
 | `reverse_distillation/torch_model.py` | `...components.tiler import Tiler` (`TYPE_CHECKING` 블록) |
 | `reverse_distillation/anomaly_map.py` | `...components.filters.blur import GaussianBlur2d` |
+| `dfm/torch_model.py` | `...components.data.torch_base import InferenceBatch` |
+| `dfm/torch_model.py` | `...components.dimensionality_reduction.pca import PCA` |
+| `dfm/torch_model.py` | `...components.base.dynamic_buffer import DynamicBufferMixin` |
+| `dfm/torch_model.py` | `...components.feature_extractors.timm import TimmFeatureExtractor` |
+| `components/dimensionality_reduction/pca.py` | `...components.base.dynamic_buffer import DynamicBufferMixin` |
+| `dfkde/torch_model.py` | `...components.data.torch_base import InferenceBatch` |
+| `dfkde/torch_model.py` | `...components.feature_extractors.timm import TimmFeatureExtractor` |
+| `dfkde/torch_model.py` | `...components.classification.kde_classifier import FeatureScalingMethod, KDEClassifier` |
+| `components/classification/kde_classifier.py` | `...components.dimensionality_reduction.pca import PCA` / `...components.stats.kde import GaussianKDE` (2줄, §4.9와 같은 사유로 분리) |
+| `components/stats/kde.py` | `...components.base.dynamic_buffer import DynamicBufferMixin` |
+| `cfa/torch_model.py` | `...components.data.torch_base import InferenceBatch` |
+| `cfa/torch_model.py` | `...components.base.dynamic_buffer import DynamicBufferMixin` |
+| `cfa/torch_model.py` | `...components.feature_extractors.utils import dryrun_find_featuremap_dims` |
+| `cfa/anomaly_map.py` | `...components.filters.blur import GaussianBlur2d` |
 
-`patchcore/torch_model.py`의 원본 한 줄 `from anomalib.models.components import DynamicBufferMixin, KCenterGreedy, TimmFeatureExtractor`는 패키지 `__init__`을 경유하면 Lightning이 딸려 오므로 **모듈 단위 3줄로 분리**했다. `padim/torch_model.py`의 `from anomalib.models.components import MultiVariateGaussian, TimmFeatureExtractor`도 같은 이유로 2줄로 분리했다. 줄 수가 늘지만 성격은 import 경로 치환이다.
+`patchcore/torch_model.py`의 원본 한 줄 `from anomalib.models.components import DynamicBufferMixin, KCenterGreedy, TimmFeatureExtractor`는 패키지 `__init__`을 경유하면 Lightning이 딸려 오므로 **모듈 단위 3줄로 분리**했다. `padim/torch_model.py`의 `from anomalib.models.components import MultiVariateGaussian, TimmFeatureExtractor`도 같은 이유로 2줄로 분리했다. `components/classification/kde_classifier.py`의 `from anomalib.models.components import PCA, GaussianKDE`도 동일한 사유로 2줄로 분리했다. 줄 수가 늘지만 성격은 import 경로 치환이다.
 
-### 4.6 무결성 확인
+### 4.9 무결성 확인
 
 ```bash
 cd src/tasks/anomaly/models && sha256sum \
@@ -154,7 +201,11 @@ cd src/tasks/anomaly/models && sha256sum \
   components/sampling/k_center_greedy.py \
   components/dimensionality_reduction/random_projection.py \
   components/filters/blur.py components/utils/deprecation.py \
-  components/stats/multi_variate_gaussian.py
+  components/stats/multi_variate_gaussian.py \
+  dfm/torch_model.py dfkde/torch_model.py \
+  cfa/torch_model.py cfa/anomaly_map.py cfa/loss.py \
+  components/dimensionality_reduction/pca.py \
+  components/classification/kde_classifier.py components/stats/kde.py
 ```
 
 각 모델 디렉터리의 `__init__.py`는 이 프로젝트가 소유한 팩토리이므로 원본 대조 대상이 아니다. `reverse_distillation/LICENSE`는 원본 그대로의 라이선스 고지라 대조 대상이 아니다.
@@ -169,9 +220,10 @@ cd src/tasks/anomaly/models && sha256sum \
 | `scipy` | 1.15.3 | `all_in_one_block.py` | **미기재** |
 | `timm` | 1.0.22 | 공통 backbone | **미기재** |
 | `omegaconf` | 2.3.0 | FastFlow `anomaly_map.py` 타입 힌트 | **미기재** |
-| `tqdm` | 4.67.1 | `k_center_greedy.py` | 기재됨(간접) |
+| `tqdm` | 4.67.1 | `k_center_greedy.py`, CFA `initialize_centroid` | 기재됨(간접) |
+| `einops` | 0.8.1 | CFA `torch_model.py`·`anomaly_map.py` (`rearrange`) | **미기재** |
 
-**PaDiM과 Reverse Distillation은 신규 의존성을 추가하지 않는다.** `multi_variate_gaussian.py`는 torch만 쓰고, RD의 `resnet_decoder.py`·`bottleneck.py`는 `torchvision.models.resnet`의 기본 블록만 재사용한다. `anomaly_map.py`가 쓰는 `omegaconf`는 FastFlow가 이미 끌어온 것이다.
+**PaDiM과 Reverse Distillation은 신규 의존성을 추가하지 않는다.** `multi_variate_gaussian.py`는 torch만 쓰고, RD의 `resnet_decoder.py`·`bottleneck.py`는 `torchvision.models.resnet`의 기본 블록만 재사용한다. `anomaly_map.py`가 쓰는 `omegaconf`는 FastFlow가 이미 끌어온 것이다. **DFM·DFKDE도 신규 의존성을 추가하지 않는다** — `pca.py`·`kde.py`·`kde_classifier.py` 전부 torch만 쓴다. **CFA는 `einops` 하나가 새로 추가되고, `scikit-learn`(`sklearn.cluster.KMeans`, `gamma_c > 1`일 때만 호출)과 `torchvision`은 이미 다른 경로로 확보되어 있다.**
 
 어느 것도 런타임에 네트워크를 쓰지 않는다(CON-003 무관). 다만 `requirements.txt`에 없어 새 머신에서 재현이 깨진다 — v0.2 범위에서 보강 대상이다.
 
@@ -435,7 +487,136 @@ upstream은 blur 모듈을 forward마다 새로 만들고 `.to(device)`한다. �
 
 `_load_backbone_weights`는 다른 세 모델과 동일한 규칙이다. `wide_resnet50_2` + `layers=[layer1, layer2, layer3]`는 `out_indices=[1,2,3]`으로 해석되어 `layer4`와 `fc`가 제거되므로 그 키들만 unexpected로 허용된다. `missing`이 있거나 shape이 어긋나면 `LocalAssetError`이며, 조용한 랜덤 초기화 폴백은 없다(CON-004).
 
-## 10. 검증 기록
+## 10. 모델 연결 — DFM
+
+| 항목 | 값 |
+|---|---|
+| upstream 파일 | `dfm/torch_model.py` |
+| 공유 components | `dimensionality_reduction/pca.py` (신규), `base/dynamic_buffer.py`, `feature_extractors/timm.py`, `data/torch_base.py` |
+| adapter | `adapters/dfm.py#DfmAdapter` (`ADAPTERS: "dfm"`) |
+| 모델 팩토리 | `models/dfm/__init__.py#build_dfm` (`MODELS: "dfm"`, `"dfm_anomaly"`) |
+| config | `configs/anomaly/models/dfm.yaml` (`smooth_sigma: 4.0` — §10.3) |
+| override한 hook | `train_step`, `on_validation_start` |
+| 로컬 자산 | `${paths.backbone_root}/resnet50-0676ba61.pth` (기본), selector로 `resnet18`·`wide_resnet50_2` |
+
+### 10.1 `lightning_model.py` 이관 결과
+
+| anomalib | 이 프로젝트 |
+|---|---|
+| `configure_optimizers` → **None** | config `optim`에 no-op optimizer 선언 (PatchCore·PaDiM과 동일, §7.2 참조) |
+| `training_step` → feature 수집 + dummy loss | `DfmAdapter.train_step` |
+| `MemoryBankMixin.on_validation_start` → `fit()` → PCA(+`nll`이면 Gaussian) | `DfmAdapter.on_validation_start` |
+| `validation_step` → `InferenceBatch` 반환 | 공통 `AnomalyAdapter.eval_step` (override 불필요, `fre` 모드 한정) |
+| `trainer_arguments` → `max_epochs=1`, `gradient_clip_val=0` | config `train.epochs: 1`, `train.grad_clip: null` |
+
+### 10.2 optimizer — PatchCore·PaDiM과 동일하게 no-op
+
+DFM도 gradient 학습이 없다. `_load_backbone_weights` 판정, freeze 미적용(빈 파라미터 리스트 회피), `.grad is None` 실측까지 PatchCore(§7.2)와 완전히 동일한 근거를 공유한다. 별도 조사는 하지 않았다.
+
+### 10.3 `score_type` — anomaly map 존재 여부가 갈린다
+
+- `score_type="fre"`(기본): PCA 재구성 오차를 pixel-level anomaly map으로 만든다. 내부 blur가 없으므로(PatchCore·PaDiM·Reverse Distillation과 다름) `smooth_sigma`는 공통 기본값 `4.0`을 유지한다.
+- `score_type="nll"`: Gaussian NLL이며 anomaly map을 만들지 않는다. 이 프로젝트의 공통 pixel-metric pipeline과 연결돼 있지 않으므로, 이 모드로 evaluate를 실행하면 `AnomalyAdapter.eval_step`이 `None` anomaly map을 `smooth_anomaly_map`에 넘겨 예외가 난다. 사용하려면 DFKDE 방식(§11)의 adapter override가 추가로 필요하다 — 미구현.
+
+### 10.4 upstream 버그 — `SingleClassGaussian.fit`의 `torch.mean(..., device=...)`
+
+`torch_model.py:73`의 `torch.mean(dataset, dim=1, device=dataset.device)`는 `torch.mean`이 받지 않는 `device` 키워드를 넘겨 `TypeError`를 낸다. `score_type="nll"`일 때만 호출되는 경로이며 기본값 `"fre"`에서는 도달하지 않는다. upstream 원본 그대로이므로 수정하지 않는다(CON-001). `nll`을 쓰려면 이 버그가 먼저 upstream에서 해결되어야 한다.
+
+## 11. 모델 연결 — DFKDE
+
+| 항목 | 값 |
+|---|---|
+| upstream 파일 | `dfkde/torch_model.py` |
+| 공유 components | `classification/kde_classifier.py` (신규), `stats/kde.py` (신규), `dimensionality_reduction/pca.py`(DFM과 공유), `feature_extractors/timm.py`, `data/torch_base.py` |
+| adapter | `adapters/dfkde.py#DfkdeAdapter` (`ADAPTERS: "dfkde"`) |
+| 모델 팩토리 | `models/dfkde/__init__.py#build_dfkde` (`MODELS: "dfkde"`, `"dfkde_anomaly"`) |
+| config | `configs/anomaly/models/dfkde.yaml` (`metrics: [image_auroc]`만 — §11.2) |
+| override한 hook | `train_step`, `on_validation_start`, `eval_step`, `update_metrics`, `predict_step`, `on_fit_end` |
+| 로컬 자산 | `${paths.backbone_root}/resnet18-f37072fd.pth` (기본), selector로 `wide_resnet50_2` |
+
+### 11.1 `lightning_model.py` 이관 결과
+
+DFM(§10.1)과 optimizer·fit 시점 구조는 동일하다. 차이는 `configure_evaluator`가 `image_auroc`·`image_f1score`만 등록한다는 점 — DFKDE는 이 프로젝트 여섯 모델 중 유일하게 anomaly map을 만들지 않는 모델이며, §11.2에서 그 결과를 다룬다.
+
+### 11.2 anomaly map 부재 — 공통 adapter를 그대로 쓸 수 없다
+
+`DfkdeModel.forward`는 추론 시 `InferenceBatch(pred_score=scores)`만 반환한다(`anomaly_map` 인자 없음, 기본값 `None`). 공통 `AnomalyAdapter.eval_step`/`predict_step`/`on_fit_end`(threshold 계산)는 모두 `outputs["anomaly_map"]`이 존재한다고 가정하고 `smooth_anomaly_map`·`.flatten()`을 호출하므로 `None`에서 그대로 크래시한다.
+
+`DfkdeAdapter`가 세 hook을 전부 재정의해 pixel 경로를 건너뛴다.
+
+- `eval_step`: `maps`/`masks` 자체를 계산하지 않고 `scores`/`labels`만 담아 반환한다.
+- `update_metrics`: `image_auroc`만 갱신한다.
+- `on_fit_end`: `postprocess.smoother.compute_thresholds`를 호출하지 않고, 그 안의 image-score 절반만 `best_f1_threshold`로 직접 재구현해 `image_threshold`를 계산한다. `pixel_threshold`는 `None`으로 고정한다.
+- `predict_step`: base 구현에서 `maps = self._smooth(...)`와 `self._last_maps = maps.detach().cpu()` 두 줄만 제거한 버전이다. `self._last_maps`가 `__init__`의 초기값 `None`으로 남으므로 상속받은 `visualize()`가 `if ... self._last_maps is None: return`으로 안전하게 no-op된다 — 별도 override 불필요.
+
+config의 `metrics:` 목록도 `image_auroc` 하나로 전체 교체해 `pixel_auroc`를 제거한다. `deep_merge`가 리스트를 병합이 아니라 교체하므로 이 방식이 성립한다(data config는 손대지 않는다 — EfficientAD의 `data:` 블록 오버라이드와 같은 메커니즘, `docs/guides/anomaly-models.md` §3.8).
+
+### 11.3 `KDEClassifier.fit`의 subsample — `torch` RNG와 무관
+
+`kde_classifier.py:159`의 `random.sample(...)`은 Python 표준 `random` 모듈을 쓴다(`max_training_points=40000` 초과 시에만 호출). `torch.random.fork_rng`가 감싸는 대상이 아니므로 PatchCore·PaDiM식 guard를 두지 않았다. `random.seed()`는 `runtime.seed`로 별도 시드된다(`src/core/context.py`).
+
+## 12. 모델 연결 — CFA
+
+| 항목 | 값 |
+|---|---|
+| upstream 파일 | `cfa/torch_model.py`, `cfa/anomaly_map.py`, `cfa/loss.py` |
+| 공유 components | `base/dynamic_buffer.py`, `filters/blur.py`, `feature_extractors/utils.py`, `data/torch_base.py` (전부 기존 재사용, 신규 없음) |
+| adapter | `adapters/cfa.py#CfaAdapter` (`ADAPTERS: "cfa"`) |
+| 모델 팩토리 | `models/cfa/__init__.py#build_cfa` (`MODELS: "cfa"`, `"cfa_anomaly"`) |
+| config | `configs/anomaly/models/cfa.yaml` (`smooth_sigma: 0`, `train.epochs: 30` 잠정 — §14) |
+| override한 hook | `on_fit_start`, `train_step` |
+| 로컬 자산 | `${paths.backbone_root}/wide_resnet50_2-95faca4d.pth` (기본), selector로 `resnet18` |
+
+### 12.1 `lightning_model.py` 이관 결과
+
+| anomalib | 이 프로젝트 |
+|---|---|
+| `on_train_start` → `initialize_centroid(train_dataloader)` | `CfaAdapter.on_fit_start` (§12.3) |
+| `training_step` → `distance = model(x)`; `loss = self.loss(distance)` | `CfaAdapter.train_step` |
+| `backward` override (`retain_graph=True`) | 필요 없음 — 원인이 다르며 adapter가 다르게 해결한다 (§12.4) |
+| `configure_optimizers` → `AdamW(model.parameters(), lr=1e-3, weight_decay=5e-4, amsgrad=True)` | config `optim` (§12.2) |
+| `validation_step` → `InferenceBatch` 반환 | 공통 `AnomalyAdapter.eval_step` (override 불필요) |
+| `trainer_arguments` → `gradient_clip_val=0` | config `train.grad_clip: null` |
+
+### 12.2 feature extraction — `TimmFeatureExtractor`가 아니다
+
+`torch_model.py`의 module-level `get_feature_extractor(backbone, return_nodes)`가 `getattr(torchvision.models, backbone)(pretrained=True)` 뒤 `torchvision.models.feature_extraction.create_feature_extractor`로 감싼다. PatchCore·PaDiM·Reverse Distillation·DFM·DFKDE는 전부 `TimmFeatureExtractor`를 쓰므로 CFA만 별도 no-download 처리가 필요했다.
+
+- 팩토리가 `torchvision.models.<backbone>` 모듈 속성을 `pretrained=False` wrapper로 **일시 치환**하고 `try/finally`로 원복한다(STFPM의 `timm.create_model` 치환과 같은 기법, 대상만 다르다).
+- `get_feature_extractor`는 매 호출 `getattr(torchvision.models, backbone)`을 새로 하므로 속성 치환만으로 충분하고 `torch_model.py`는 건드리지 않는다.
+- 가중치는 `create_feature_extractor`가 반환한 `GraphModule`에 직접 로드한다. FX 추출은 서브모듈 이름을 바꾸지 않으므로 state-dict 키가 원본 backbone과 같다 — PatchCore·PaDiM과 같은 `_load_backbone_weights` 판정 규칙(missing 즉시 실패, unexpected는 없는 서브모듈만 허용)을 그대로 적용했다.
+- 팩토리가 backbone을 `requires_grad=False`로 명시적으로 고정한다. anomalib은 고정하지 않지만 `forward`가 항상 `torch.no_grad()`로 backbone을 실행해 그레이디언트가 애초에 생기지 않으므로 결과는 동일하다 — PatchCore·PaDiM과 달리 CFA는 descriptor network(CoordConv2d, trainable 4개 tensor)가 있어 freeze해도 `build_optimizer`가 빈 리스트를 받지 않는다.
+- **적대적 검토에서 지적된 한계**: 이 치환은 전역 `torchvision.models` 속성을 lock 없이 바꾸므로 여러 스레드에서 동시에 `build_cfa`를 호출하면 이론적으로 다른 스레드의 wrapper가 뒤섞이거나 원복이 어긋날 수 있다. 이 프로젝트의 CLI는 모델을 항상 직렬로 생성하므로 실제 발생 경로는 없다. STFPM의 `timm.create_model` 치환(v0.1 문서)도 동일한 성격의 위험을 안고 있어, 새로운 문제가 아니라 기존에 받아들인 위험의 반복이다.
+
+### 12.3 centroid 초기화 — `.image` 속성 브리지
+
+`initialize_centroid(data_loader)`는 `for i, data in enumerate(tqdm(data_loader)): batch = data.image.to(device)`로 anomalib의 `Batch`(`.image` 속성 보유)를 직접 기대한다. 이 프로젝트의 loader는 `(images, targets)` 튜플을 낸다.
+
+모델 파일을 고치는 대신 `adapters/cfa.py`에 `_ImageBatch`(슬롯 하나짜리 `.image` wrapper)와 `_as_image_batches(loader)`(제너레이터)를 두어 `CfaAdapter.on_fit_start`가 `model.initialize_centroid(data_loader=_as_image_batches(loaders["train"]))`로 호출한다. `initialize_centroid`가 읽는 필드는 `.image` 하나뿐이므로 이 wrapper로 원본 계산(전체 train set 순회 평균 → `gamma_c > 1`이면 k-means)이 그대로 재현된다. 합성 배치로 실측 확인함(`memory_bank` shape이 backbone 채널 수와 일치).
+
+### 12.4 학습 loop 버그 — `CfaLoss.radius`가 그래프를 붙들고 있었다 (사용자 재현, 수정함)
+
+첫 학습 실행에서 두 번째 배치의 `backward()`가 다음으로 실패했다.
+
+```text
+RuntimeError: Trying to backward through the graph a second time
+```
+
+원인: `loss.py:58`의 `self.radius = torch.ones(1, requires_grad=True) * radius`는 leaf가 아니라 `grad_fn`을 가진 non-leaf 텐서다. `CfaAdapter.__init__`이 애초에 `CfaLoss`를 **한 번만** 만들었으므로 모든 학습 스텝이 이 텐서 하나를 공유했고, 첫 `backward()`가 그 계산 그래프를 해제해 두 번째 스텝이 죽었다.
+
+anomalib은 `Cfa.backward`를 `loss.backward(retain_graph=True)`로 오버라이드해 우회한다(`lightning_model.py:233`, "Investigate why retain_graph is needed"라는 TODO가 붙어 있다 — 바로 이 원인이다). 이 프로젝트의 공통 engine(`engine.py:130`)은 모델별 backward 훅이 없고, 매 스텝 전체 그래프를 유지하는 것은 메모리 누수로 이어진다.
+
+**조치**: `CfaAdapter.train_step`이 매 스텝 `self.cfa_loss.radius = torch.ones(1, requires_grad=True) * self._radius`로 텐서를 새로 만든다. `radius`는 `nn.Parameter`가 아니고 `build_optimizer`에도 전달되지 않으므로(CFA는 backbone을 freeze해 descriptor만 optimizer에 들어간다, §12.2) 이전 스텝에 쌓였을 그레이디언트가 적용된 적이 없다 — 수치적으로 anomalib과 동일하며 매 스텝 새 leaf 노드를 갖는다는 차이만 있다. SSOT 파일(`loss.py`)은 수정하지 않았다.
+
+4스텝 연속 backward로 재현·수정을 확인했다(§13).
+
+### 12.5 model/loss 하이퍼파라미터 이중 선언 (적대적 검토 지적, 수정함)
+
+최초 구현은 `num_nearest_neighbors`·`num_hard_negative_features`·`radius`를 `model.params`와 `adapter.params` 양쪽에 각각 선언했다. anomalib의 `Cfa.__init__`은 하나의 인자 집합을 `CfaModel`과 `CfaLoss` 양쪽에 전달하므로 불일치가 원천적으로 불가능한데, 이 구조는 두 config 값이 어긋나면 anomaly map과 학습 손실이 다른 하이퍼파라미터를 쓰는 조용한 버그가 될 수 있었다.
+
+**조치**: `CfaAdapter.on_fit_start`가 이미 생성된 `model`에서 `model.num_nearest_neighbors`·`model.num_hard_negative_features`·`model.radius`를 직접 읽어 `CfaLoss`를 구성하도록 바꿨다. `cfa.yaml`의 `adapter.params`에서 세 값을 제거했다 — 이제 `model.params`가 유일한 출처다.
+
+## 13. 검증 기록
 
 | 항목 | FastFlow | PatchCore | PaDiM | Reverse Distillation |
 |---|---|---|---|---|
@@ -454,23 +635,44 @@ upstream은 blur 모듈을 forward마다 새로 만들고 `.to(device)`한다. �
 
 PatchCore·PaDiM의 스모크 수치는 §8.4의 `smooth_sigma: 0` 적용 후 값이다. PatchCore는 기존 커밋 시점(`smooth_sigma: 4.0`) 대비 pixel만 바뀌었고(valid 0.98506 → 0.98534, test 0.988 → 0.989) image AUROC는 동일하다. STFPM·EfficientAD·FastFlow는 내부 blur가 없어 `4.0`을 유지하므로 영향이 없다.
 
-PaDiM의 evaluate image AUROC 0.912는 valid(0.997)와 차이가 크다. 같은 checkpoint·같은 코드에서 split만 다르므로 split 구성 차이로 보이나, 3개 카테고리 정식 검증에서 재확인이 필요하다(§11).
+PaDiM의 evaluate image AUROC 0.912는 valid(0.997)와 차이가 크다. 같은 checkpoint·같은 코드에서 split만 다르므로 split 구성 차이로 보이나, 3개 카테고리 정식 검증에서 재확인이 필요하다(§14).
 
-## 11. 미완 항목
+### 13.1 DFM·DFKDE·CFA
+
+| 항목 | DFM | DFKDE | CFA |
+|---|---|---|---|
+| 원본 diff | import 4줄 외 0라인 | import 3줄 외 0라인 | import 3줄 외 0라인 |
+| `grep -rn lightning` | 0건 | 0건 | 0건 (docstring의 "Lightning" 설명 문구 제외) |
+| `git status -- src/core/` | 무변경 | 무변경 | 무변경 |
+| 기존 모델 파일(STFPM~RD) | 무변경 | 무변경 | 무변경 |
+| registry 등록 | `MODELS.build("dfm_anomaly")` 성공 | `MODELS.build("dfkde_anomaly")` 성공 | `MODELS.build("cfa_anomaly")` 성공 |
+| freeze/grad | 의도적 미freeze(PatchCore·PaDiM과 동일 사유) | 의도적 미freeze(동일) | backbone freeze, trainable 4개 tensor(descriptor)만 optimizer에 포함 — 실측 |
+| 오프라인 재현 | `--print_config` 정상, local weight 강제 로드 확인 | 동일 | `torch.hub` 캐시 숨긴 상태에서 local weight만으로 빌드 성공(다운로드 없음 확인) |
+| `--print_config` | 정상 (`metrics:` 기본 유지) | 정상 (`metrics: [image_auroc]`로 교체됨 확인) | 정상 (`adapter.params`에 하이퍼파라미터 없음 확인, §12.5) |
+| 합성 배치 스모크 | — | — | `on_fit_start`→centroid 초기화→4스텝 연속 `train_step`+`backward()` 성공, eval `pred_score`/`anomaly_map` shape 확인 |
+| 반대 벤더 적대적 검토 | Codex CLI 1회, Critical 0 | Codex CLI 1회, Critical 0 | Codex CLI 1회, Critical 0, Major 2건 수정(§12.4, §12.5) — 상세는 `docs/dev/v0.2/reviews/A1.md` |
+| 실제 학습 성능(bottle 등) | **사용자 실행 대기** | **사용자 실행 대기** | 사용자가 `train.py`(bottle) 실행해 완주 확인(수정 후). AUROC 등 수치는 미수집 — 정식 검증은 3개 카테고리로 별도 진행 |
+
+DFM·DFKDE는 이 세션에서 실제 `scripts/train.py` 실행을 거치지 않았다 — registry 빌드와 `--print_config`, 그리고 (CFA에 한해) 합성 배치 스모크로 코드 경로만 검증했다. 실제 MVTec 데이터로 학습을 처음 돌린 것은 CFA뿐이며, 그 첫 실행에서 §12.4의 `retain_graph` 버그가 실제로 재현되었다 — 합성 스모크가 놓친 결함이다(§14 참조).
+
+## 14. 미완 항목
 
 - FastFlow `train.epochs: 100`은 잠정값이다. 핀된 클론에 `examples/configs`가 sparse-checkout되어 있지 않아 anomalib의 공식 학습 예산을 확인하지 못했다.
-- 3개 카테고리(bottle, carpet, capsule) 성능 검증 — **사용자 실행 대기**. PaDiM·Reverse Distillation 포함.
-- PaDiM evaluate(test) image AUROC 0.912의 원인 확인 — split 구성 차이 가설 검증 필요 (§10).
-- 반대 벤더 CLI 적대적 검증 — 미실행 (FastFlow·PatchCore·PaDiM·Reverse Distillation 모두).
-- `requirements.txt`에 `FrEIA`·`kornia`·`scikit-learn`·`scipy`·`timm`·`omegaconf` 누락 (§5).
+- 3개 카테고리(bottle, carpet, capsule) 성능 검증 — **사용자 실행 대기**. PaDiM·Reverse Distillation·DFM·DFKDE·CFA 전부 포함.
+- PaDiM evaluate(test) image AUROC 0.912의 원인 확인 — split 구성 차이 가설 검증 필요 (§13).
+- 반대 벤더 CLI 적대적 검증 — FastFlow·PatchCore·PaDiM·Reverse Distillation은 미실행. DFM·DFKDE·CFA는 실행 완료(`reviews/A1.md`).
+- `requirements.txt`에 `FrEIA`·`kornia`·`scikit-learn`·`scipy`·`timm`·`omegaconf`·`einops` 누락 (§5).
 - FastFlow의 cait/deit 백본 미지원. 로컬 자산이 HF safetensors 디렉터리라 현재 `torch.load` 경로로 읽히지 않는다.
-- PatchCore·PaDiM은 `runtime.amp: true`와 호환되지 않을 수 있다 (§7.2). 검증하지 않았다.
-- `_load_backbone_weights`가 FastFlow·PatchCore·PaDiM·Reverse Distillation 4곳에 복제되어 있다 (§8.5). 네 번째 복제로 공통화 필요성이 뚜렷해졌으나, 기존 파일 3개를 함께 고쳐야 하므로 별도 과제다.
+- PatchCore·PaDiM·DFM·DFKDE는 `runtime.amp: true`와 호환되지 않을 수 있다 (§7.2, §10.2). 네 모델 모두 backbone을 의도적으로 freeze하지 않아(대체할 학습 대상이 없어 freeze하면 `build_optimizer`가 빈 파라미터 목록을 받는다) `GradScaler`가 "No inf checks were recorded" 로 실패할 수 있다는 점을 적대적 검토(Major)에서 다시 지적받았다. 네 모델에 공통된 기존 설계라 이번 세션에서는 손대지 않았다 — 별도 과제로 core 변경(예: no-op optimizer를 위한 전용 optimizer builder, 또는 AMP를 no-grad 모델에서 자동으로 끄는 처리)이 필요하다.
+- `weights_path=None`이면 STFPM~CFA 아홉 모델 전부 오류 없이 random-init backbone으로 빌드된다 (적대적 검토 Major). CON-003/004가 요구하는 "로컬 경로 부재 시 즉시 실패"를 factory 계층에서는 강제하지 않는다 — config가 항상 명시적 경로를 갖도록 하는 관례로만 막고 있다. 아홉 모델에 걸친 기존 설계라 별도 과제다.
+- `_load_backbone_weights`가 FastFlow·PatchCore·PaDiM·Reverse Distillation·DFM·DFKDE 6곳에 복제되어 있다 (§8.5). CFA는 로드 대상이 `GraphModule`이라 판정 로직은 같지만 코드가 한 번 더 복제됐다. 공통화 필요성이 더 뚜렷해졌으나 기존 파일들을 함께 고쳐야 하므로 별도 과제다.
 - Reverse Distillation `train.epochs: 200`은 RD4AD 논문 기준 잠정값이다. anomalib이 `max_epochs`를 고정하지 않아 공식 예산을 확인하지 못했다 (§9.1). 스모크 2 epoch에서 image AUROC가 0.995(e1) → 0.740(e2)로 크게 흔들렸다 — 초기 학습 변동으로 보이나 정식 학습에서 수렴 확인이 필요하다.
 - Reverse Distillation은 `input_size`와 `data.image_size` 불일치가 즉시 예외로 드러나지 않을 수 있다 (§9.3).
-- `postprocess/__init__.py`가 8개 이름을 re-export하지만 이를 경유하는 import가 한 곳도 없다. 실사용 공개 API는 `smooth_anomaly_map`·`to_output_dict`·`compute_thresholds`·`save_prediction_visualization` 4개이며, `best_f1_threshold`는 `compute_thresholds` 내부 헬퍼다. 공통 코드라 정리는 별도 과제다.
+- CFA `train.epochs: 30`은 CFA 논문 기준 잠정값이다(§12). 정식 학습으로 수렴 확인 필요.
+- DFM `score_type="nll"` 경로는 upstream 자체 버그(§10.4)로 막혀 있고, 이 프로젝트의 pixel-metric 파이프라인과도 연결돼 있지 않다 — 현재는 `"fre"` 고정 사용을 권장한다.
+- `postprocess/__init__.py`가 8개 이름을 re-export하지만 이를 경유하는 import가 한 곳도 없다. 실사용 공개 API는 `smooth_anomaly_map`·`to_output_dict`·`compute_thresholds`·`save_prediction_visualization` 4개이며, `best_f1_threshold`는 `compute_thresholds` 내부 헬퍼다(DFKDE의 `on_fit_end`가 직접 가져다 쓰면서 사실상 공개 API가 됐다). 공통 코드라 정리는 별도 과제다.
 
 ---
 
 작성일: 2026-08-23
-문서 상태: FastFlow·PatchCore·PaDiM·Reverse Distillation 추가 산출물 (anomalib `091ca6a` 기준)
+문서 상태: FastFlow·PatchCore·PaDiM·Reverse Distillation·DFM·DFKDE·CFA 추가 산출물 (anomalib `091ca6a` 기준)

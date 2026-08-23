@@ -1,0 +1,53 @@
+model:
+  name: dfm_anomaly
+  params:
+    backbone: resnet50
+    layer: layer3
+    weights_path: ${paths.backbone_root}/resnet50-0676ba61.pth
+    pooling_kernel_size: 4
+    n_comps: 0.97
+    # "fre" (feature reconstruction error) produces a pixel-level anomaly map.
+    # "nll" (Gaussian negative log-likelihood) is image-level only and is not
+    # wired into this project's pixel-metric pipeline -- keep "fre" unless the
+    # adapter is extended to skip pixel metrics for this model.
+    score_type: fre
+
+adapter:
+  name: dfm
+  params:
+    # Unlike PatchCore/PaDiM/Reverse Distillation, DFM's anomaly map has no
+    # internal blur (dfm/torch_model.py DFMModel.score just upsamples the FRE
+    # map), so the common postprocess smoother provides it. Keep the adapter
+    # default (4.0) instead of disabling it.
+    smooth_sigma: 4.0
+
+optim:
+  # DFM does no gradient training -- anomalib's configure_optimizers returns
+  # None. The common engine always requires an optimizer, so one is declared here
+  # and is a guaranteed no-op: the backbone forward runs under torch.no_grad(), so
+  # every parameter gradient stays None and optimizer.step() changes nothing.
+  optimizer:
+    name: adam
+    params:
+      lr: 0.001
+
+train:
+  # anomalib trainer_arguments: max_epochs=1. A single pass over the training set
+  # fills the memory bank; PCA (and, for score_type=nll, the Gaussian model) is
+  # fitted once before the first validation, so further epochs would only
+  # re-collect features that are never used.
+  epochs: 1
+  # anomalib trainer_arguments: gradient_clip_val=0 (no clipping).
+  grad_clip: null
+
+selectors:
+  backbone:
+    resnet50:
+      model.params.backbone: resnet50
+      model.params.weights_path: "${paths.backbone_root}/resnet50-0676ba61.pth"
+    resnet18:
+      model.params.backbone: resnet18
+      model.params.weights_path: "${paths.backbone_root}/resnet18-f37072fd.pth"
+    wide_resnet50_2:
+      model.params.backbone: wide_resnet50_2
+      model.params.weights_path: "${paths.backbone_root}/wide_resnet50_2-95faca4d.pth"

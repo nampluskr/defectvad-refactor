@@ -7,6 +7,9 @@ from src.tasks.anomaly.models.reverse_distillation import (
     ReverseDistillationModel,
     build_reverse_distillation,
 )
+from src.tasks.anomaly.models.dfm import DFMModel, build_dfm
+from src.tasks.anomaly.models.dfkde import DfkdeModel, build_dfkde
+from src.tasks.anomaly.models.cfa import CfaModel, build_cfa
 
 __all__ = [
     "STFPMModel",
@@ -21,4 +24,10 @@ __all__ = [
     "build_padim",
     "ReverseDistillationModel",
     "build_reverse_distillation",
+    "DFMModel",
+    "build_dfm",
+    "DfkdeModel",
+    "build_dfkde",
+    "CfaModel",
+    "build_cfa",
 ]
