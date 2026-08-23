@@ -1,0 +1,40 @@
+model:
+  name: fastflow_anomaly
+  params:
+    backbone: resnet18
+    weights_path: ${paths.backbone_root}/resnet18-f37072fd.pth
+    # input_size must match data.image_size below: the LayerNorm and the
+    # normalizing-flow blocks are constructed with fixed spatial dimensions.
+    input_size: [256, 256]
+    flow_steps: 8
+    conv3x3_only: false
+    hidden_ratio: 1.0
+
+adapter:
+  name: fastflow
+  params:
+    smooth_sigma: 4.0
+
+optim:
+  # anomalib configure_optimizers: Adam(lr=0.001, weight_decay=0.00001), no scheduler.
+  optimizer:
+    name: adam
+    params:
+      lr: 0.001
+      weight_decay: 0.00001
+
+train:
+  # FastFlow trains the flow blocks from scratch and needs a long budget.
+  # This is the primary knob if image/pixel AUROC falls short of the reference.
+  epochs: 100
+  # anomalib trainer_arguments: gradient_clip_val=0 (i.e. no clipping).
+  grad_clip: null
+
+selectors:
+  backbone:
+    resnet18:
+      model.params.backbone: resnet18
+      model.params.weights_path: "${paths.backbone_root}/resnet18-f37072fd.pth"
+    wide_resnet50_2:
+      model.params.backbone: wide_resnet50_2
+      model.params.weights_path: "${paths.backbone_root}/wide_resnet50_2-95faca4d.pth"

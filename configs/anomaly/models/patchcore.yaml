@@ -1,0 +1,41 @@
+model:
+  name: patchcore_anomaly
+  params:
+    backbone: wide_resnet50_2
+    layers: [layer2, layer3]
+    weights_path: ${paths.backbone_root}/wide_resnet50_2-95faca4d.pth
+    num_neighbors: 9
+
+adapter:
+  name: patchcore
+  params:
+    smooth_sigma: 4.0
+    # anomalib Patchcore(coreset_sampling_ratio=0.1)
+    coreset_sampling_ratio: 0.1
+
+optim:
+  # PatchCore does no gradient training -- anomalib's configure_optimizers returns
+  # None. The common engine always requires an optimizer, so one is declared here
+  # and is a guaranteed no-op: the backbone forward runs under torch.no_grad(), so
+  # every parameter gradient stays None and optimizer.step() changes nothing.
+  optimizer:
+    name: adam
+    params:
+      lr: 0.001
+
+train:
+  # anomalib trainer_arguments: max_epochs=1. A single pass over the training set
+  # fills the memory bank; further epochs only re-collect embeddings that are
+  # never used, since the coreset is built once before the first validation.
+  epochs: 1
+  # anomalib trainer_arguments: gradient_clip_val=0 (no clipping).
+  grad_clip: null
+
+selectors:
+  backbone:
+    wide_resnet50_2:
+      model.params.backbone: wide_resnet50_2
+      model.params.weights_path: "${paths.backbone_root}/wide_resnet50_2-95faca4d.pth"
+    resnet18:
+      model.params.backbone: resnet18
+      model.params.weights_path: "${paths.backbone_root}/resnet18-f37072fd.pth"

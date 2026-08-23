@@ -8,6 +8,7 @@
 
 | 문서 | 내용 |
 |---|---|
+| [anomaly-models](file:///D:/projects/nampluskr/00_review/260820_defectvad-refactor/docs/guides/anomaly-models.md) | Anomaly Detection 모델 분류, 구현 현황 및 실행 요구사항 |
 | [cli-usage](file:///D:/projects/nampluskr/00_review/260820_defectvad-refactor/docs/guides/cli-usage.md) | CLI 명령어 전체 사용법 |
 | [structure](file:///D:/projects/nampluskr/00_review/260820_defectvad-refactor/docs/guides/structure.md) | 프로젝트 전체 폴더 구조 및 설계 가이드 |
 

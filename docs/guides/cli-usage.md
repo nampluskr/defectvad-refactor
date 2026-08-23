@@ -29,6 +29,31 @@ v0.2부터 기존의 `python -m src <command>` 패키지 호출 방식을 완전
         (예: --set runtime.device=cpu, --set train.monitor.mode=max)
 ```
 
+### 설정 파일 지정: 2가지 모드
+
+`--data`/`--model`과 `--config`는 설정 파일을 지정하는 두 가지 모드를 제공한다.
+
+**모드 1: 분리형 (`--data` + `--model`)**
+
+데이터 설정과 모델 설정을 별도 YAML 파일로 관리하고 직교 조합하는 방식이다. 데이터 YAML은 그대로 두고 모델 YAML만 교체하면 다른 실험을 즉시 구성할 수 있어 **조합의 유연성**이 높다.
+
+```bash
+python scripts/train.py \
+    --data configs/anomaly/data/mvtec.yaml \
+    --model configs/anomaly/models/stfpm.yaml
+```
+
+**모드 2: 단일 파일형 (`--config`)**
+
+데이터 + 모델 + 학습 설정이 하나의 YAML에 전부 포함된 self-contained 설정이다. 특정 실험의 전체 조건을 파일 하나로 고정할 수 있어 **재현성**이 높고, 배치 실행에서 여러 조합을 각각 독립 config로 관리할 때 유용하다.
+
+```bash
+python scripts/train.py \
+    --config configs/anomaly/batch/stfpm_mvtec_bottle.yaml
+```
+
+두 모드는 혼용할 수도 있다. `resolve_config()`의 병합 순서가 `--data` -> `--model` -> `--config`이므로, 뒤에 지정된 값이 앞의 값을 덮어쓴다.
+
 ---
 
 ## 2. 사전 준비 및 환경 설정
