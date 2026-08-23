@@ -1,5 +1,6 @@
 from .base import AnomalyAdapter, anomaly_collate
 from .cfa import CfaAdapter
+from .cflow import CflowAdapter
 from .dfkde import DfkdeAdapter
 from .dfm import DfmAdapter
 from .efficientad import EfficientAdAdapter
@@ -12,6 +13,7 @@ from .stfpm import StfpmAdapter
 __all__ = [
     "AnomalyAdapter",
     "CfaAdapter",
+    "CflowAdapter",
     "DfkdeAdapter",
     "DfmAdapter",
     "EfficientAdAdapter",

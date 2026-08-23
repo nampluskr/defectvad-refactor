@@ -24,25 +24,28 @@
 | Feature Embedding / Memory Bank | PatchCore, PaDiM |
 | Density Estimation | DFM, DFKDE |
 | Feature Embedding / Memory Bank (gradient 학습) | CFA |
+| Normalizing Flow (fiber 단위 학습) | CFLOW |
 
 DFM·DFKDE·CFA는 코드 포팅과 registry 등록, config 작성, offline 팩토리 구성을 완료했고, 반대 벤더(Codex CLI) 적대적 검증을 1회 거쳤다(`docs/dev/v0.2/reviews/A1.md`). CFA는 사용자가 실제로 `scripts/train.py`(bottle)를 실행해 학습이 정상 완주됨을 확인했다 — 이 과정에서 적대적 검토가 잡아내지 못한 결함 2건(YAML `1e-5` 파싱 함정, `CfaLoss.radius`의 non-leaf 텐서 재사용으로 인한 2스텝째 backward 실패)이 드러나 수정했다(`docs/dev/v0.2/reports/UPSTREAM-INVENTORY.md` §12.4). 이후 사용자가 DFM·DFKDE·CFA 세 모델 모두 train/evaluate/predict를 직접 실행해 정상 동작을 확인했다(2026-08-23) — 구체적인 image/pixel AUROC 수치는 별도로 기록되지 않았다. 3개 카테고리(bottle·carpet·capsule) 기준 정식 성능 비교는 여전히 사용자 실행 대기 상태다. 상세 구현 개요는 `docs/guides/anomaly-models.md` §3.7~§3.9를 참조한다.
 
 CFA는 착수 전 우려했던 "backbone fine-tune으로 SSOT 전제가 흔들리는 사례"가 실제로는 발생하지 않았다: 모델 원본은 backbone을 얼린 채로 두지 않지만(anomalib 자체가 `model.parameters()` 전체를 optimizer에 넘김), forward가 항상 `torch.no_grad()`로 backbone을 실행하므로 그레이디언트가 도달하지 않는다. 이 프로젝트는 factory에서 backbone을 `requires_grad=False`로 명시적으로 고정해 다른 모델과 동일한 "backbone 고정" 관례를 유지했다 — 결과는 anomalib과 동일하다.
 
-## 4. 우선순위 제안표 (DFM · DFKDE · CFA 제외 — 구현 완료, §3 참조)
+CFLOW는 코드 포팅과 registry 등록, config 작성, offline 팩토리 구성을 완료했고, 반대 벤더(Codex CLI) 적대적 검증을 2회 거쳤다(`docs/dev/v0.2/reviews/A2.md`). Upstream이 `automatic_optimization=False`로 이미지 배치당 fiber(feature map 조각) 단위로 최대 168회 별도 Adam step을 수행하는 구조라, 이 프로젝트의 "배치당 1회 zero_grad+backward+step" 공통 engine 계약과 정면으로 부딪혔다 — 1차 검토에서 이를 "fiber loss 합산 후 1회 step"으로 근사했다가 Major로 지적받아, `CflowAdapter`가 decoder 전용 private `torch.optim.Adam`을 직접 소유하고 fiber마다 upstream과 동일하게 즉시 step하도록 재작성했다(engine 소유 optimizer는 항상 0-gradient만 받는 더미 loss로 무력화). bottle 카테고리 1-epoch 스모크에서 이 수정으로 test image_auroc 0.908→1.000, pixel_auroc 0.927→0.987로 개선을 실측했다. 남은 미해결 사항은 `--resume` 시 이 private optimizer의 Adam 모멘텀이 보존되지 않는 것(공통 engine에 adapter-state checkpoint 훅이 없어 발생, NFR-005상 이번 세션 범위 밖)과, `runtime.amp`/`train.grad_clip`이 CFLOW의 실제 업데이트를 제어하지 못하는 것(기본 config에서는 무해) 두 가지이며, 둘 다 `CflowAdapter` docstring과 A2.md에 명시했다. 상세 구현 개요는 `docs/guides/anomaly-models.md`를 `/add-anomalib-model` 절차에 따라 추가 갱신할 때 반영한다.
+
+## 4. 우선순위 제안표 (DFM · DFKDE · CFA · CFLOW 제외 — 구현 완료, §3 참조)
 
 | 순위 | 모델 | 채우는 패러다임 | 근거 | 리스크 · 확인 필요 사항 |
 |---|---|---|---|---|
-| 1 | CFLOW | Normalizing Flow (변형) | FastFlow와 동일 계열, `FrEIA` 의존 이미 확보 | FastFlow와 구조적 차별점이 세부사항 위주 |
-| 2 | DRAEM | Reconstruction (discriminative) | Teacher-Student가 아닌 순수 reconstruction+discriminative 조합 | synthetic anomaly 생성용 texture 데이터셋(예: DTD)이 로컬 자산으로 추가 필요 — 원칙3 충족 여부 확인 |
-| 3 | GANomaly | Reconstruction (adversarial) | GAN 기반 reconstruction, generator+discriminator 이원 최적화 사례 확보 | optimizer 2개, adversarial loss로 adapter 복잡도 상승 |
-| 4 | CS-Flow | Normalizing Flow (cross-scale) | CFLOW/FastFlow와 비교되는 multi-scale flow 사례 | 우선순위 1·3 이후 여력 있을 때 |
-| 5 | DSR | Reconstruction (discrete latent) | discrete codebook 기반, 구조 이질적 | 2단계 학습(사전학습 codebook + 본학습)이 engine의 단일 학습 루프 가정과 마찰 가능 |
+| 1 | DRAEM | Reconstruction (discriminative) | Teacher-Student가 아닌 순수 reconstruction+discriminative 조합 | synthetic anomaly 생성용 texture 데이터셋(예: DTD)이 로컬 자산으로 추가 필요 — 원칙3 충족 여부 확인 |
+| 2 | GANomaly | Reconstruction (adversarial) | GAN 기반 reconstruction, generator+discriminator 이원 최적화 사례 확보 | optimizer 2개, adversarial loss로 adapter 복잡도 상승 |
+| 3 | CS-Flow | Normalizing Flow (cross-scale) | CFLOW/FastFlow와 비교되는 multi-scale flow 사례 | CFLOW의 private-optimizer 패턴을 재사용할 수 있는지 먼저 확인 |
+| 4 | DSR | Reconstruction (discrete latent) | discrete codebook 기반, 구조 이질적 | 2단계 학습(사전학습 codebook + 본학습)이 engine의 단일 학습 루프 가정과 마찰 가능 |
 | 보류 | WinCLIP, VLM-AD 등 | Vision-Language / Zero-shot | — | 학습→평가→추론 파이프라인 가정과 근본적으로 다름, 오프라인 원칙 저촉 가능성 — 별도 설계 검토 없이는 보류 |
 
 ## 5. 미정 사항
 
-- 남은 순위 1~5(CFLOW·DRAEM·GANomaly·CS-Flow·DSR)의 확정 여부 — 사용자 승인 대기.
+- 남은 순위 1~4(DRAEM·GANomaly·CS-Flow·DSR)의 확정 여부 — 사용자 승인 대기.
+- CFLOW의 `--resume` 시 decoder Adam 모멘텀 미보존 문제 — 공통 engine에 adapter-state checkpoint 훅(`src/core/checkpoint.py`의 `adapter_state` 매개변수는 이미 존재하나 `src/core/engine.py`가 채우지 않는 미완성 확장점)을 추가하는 별도 과제로 이월. CS-Flow 등 이후 fiber/2단계 학습 모델에서도 같은 문제가 반복될 가능성이 높다.
 - DRAEM 착수 전 원칙3(오프라인) 저촉 여부 재검토 필요 — synthetic anomaly 생성용 texture 데이터셋 로컬화 방법 확정 (표의 "리스크" 열 참조).
 - DFM·DFKDE·CFA는 세 스크립트(train/evaluate/predict) 실행 자체는 사용자가 확인했다(2026-08-23). 3개 카테고리(bottle·carpet·capsule) 기준 정식 성능 비교와 수치 기록은 아직 없다 — 필요 시 결과에 따라 config 하이퍼파라미터(특히 CFA `train.epochs`, DFM `score_type`)를 조정할 수 있다.
 - PatchCore·PaDiM·DFM·DFKDE의 `runtime.amp: true` 비호환 가능성, `weights_path=None` 시 silent random-init — 적대적 검토(A1)에서 지적됐으나 9개 모델에 걸친 기존 설계라 이번 세션에서는 수정하지 않았다. 별도 과제로 core 변경 필요 (`UPSTREAM-INVENTORY.md` §14).

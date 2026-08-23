@@ -1,0 +1,42 @@
+model:
+  name: cflow_anomaly
+  params:
+    backbone: wide_resnet50_2
+    weights_path: ${paths.backbone_root}/wide_resnet50_2-95faca4d.pth
+    layers: [layer2, layer3, layer4]
+    fiber_batch_size: 64
+    decoder: freia-cflow
+    condition_vector: 128
+    coupling_blocks: 8
+    clamp_alpha: 1.9
+    permute_soft: false
+
+adapter:
+  name: cflow
+  params:
+    smooth_sigma: 4.0
+    # anomalib configure_optimizers: Adam(lr=0.0001), no scheduler. CflowAdapter
+    # owns a private per-fiber Adam optimizer at this lr to reproduce upstream's
+    # per-fiber step schedule exactly -- see CflowAdapter docstring. The
+    # `optim.optimizer` block below is structurally required by the engine but
+    # never receives a nonzero gradient for this model, so it is inert.
+    lr: 0.0001
+
+optim:
+  optimizer:
+    name: adam
+    params:
+      lr: 0.0001
+
+train:
+  # anomalib trainer_arguments: gradient_clip_val=0 (i.e. no clipping).
+  grad_clip: null
+
+selectors:
+  backbone:
+    resnet18:
+      model.params.backbone: resnet18
+      model.params.weights_path: "${paths.backbone_root}/resnet18-f37072fd.pth"
+    wide_resnet50_2:
+      model.params.backbone: wide_resnet50_2
+      model.params.weights_path: "${paths.backbone_root}/wide_resnet50_2-95faca4d.pth"

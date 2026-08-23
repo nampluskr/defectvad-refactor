@@ -563,7 +563,7 @@ config의 `metrics:` 목록도 `image_auroc` 하나로 전체 교체해 `pixel_a
 | 공유 components | `base/dynamic_buffer.py`, `filters/blur.py`, `feature_extractors/utils.py`, `data/torch_base.py` (전부 기존 재사용, 신규 없음) |
 | adapter | `adapters/cfa.py#CfaAdapter` (`ADAPTERS: "cfa"`) |
 | 모델 팩토리 | `models/cfa/__init__.py#build_cfa` (`MODELS: "cfa"`, `"cfa_anomaly"`) |
-| config | `configs/anomaly/models/cfa.yaml` (`smooth_sigma: 0`, `train.epochs: 30` 잠정 — §14) |
+| config | `configs/anomaly/models/cfa.yaml` (`smooth_sigma: 0`, `train.epochs: 30` 잠정 — §15) |
 | override한 hook | `on_fit_start`, `train_step` |
 | 로컬 자산 | `${paths.backbone_root}/wide_resnet50_2-95faca4d.pth` (기본), selector로 `resnet18` |
 
@@ -635,7 +635,7 @@ anomalib은 `Cfa.backward`를 `loss.backward(retain_graph=True)`로 오버라이
 
 PatchCore·PaDiM의 스모크 수치는 §8.4의 `smooth_sigma: 0` 적용 후 값이다. PatchCore는 기존 커밋 시점(`smooth_sigma: 4.0`) 대비 pixel만 바뀌었고(valid 0.98506 → 0.98534, test 0.988 → 0.989) image AUROC는 동일하다. STFPM·EfficientAD·FastFlow는 내부 blur가 없어 `4.0`을 유지하므로 영향이 없다.
 
-PaDiM의 evaluate image AUROC 0.912는 valid(0.997)와 차이가 크다. 같은 checkpoint·같은 코드에서 split만 다르므로 split 구성 차이로 보이나, 3개 카테고리 정식 검증에서 재확인이 필요하다(§14).
+PaDiM의 evaluate image AUROC 0.912는 valid(0.997)와 차이가 크다. 같은 checkpoint·같은 코드에서 split만 다르므로 split 구성 차이로 보이나, 3개 카테고리 정식 검증에서 재확인이 필요하다(§15).
 
 ### 13.1 DFM·DFKDE·CFA
 
@@ -654,9 +654,29 @@ PaDiM의 evaluate image AUROC 0.912는 valid(0.997)와 차이가 크다. 같은 
 | train/evaluate/predict 실행 | 사용자 실행 확인(2026-08-23) | 사용자 실행 확인(2026-08-23) | 사용자 실행 확인(2026-08-23, §12.4 수정 후) |
 | 수치 기록(image/pixel AUROC 등) | 미수집 | 미수집 | 미수집 |
 
-DFM·DFKDE·CFA 세 모델 모두 사용자가 `scripts/train.py`·`evaluate.py`·`predict.py`를 직접 실행해 정상 동작을 확인했다(2026-08-23). 실제 MVTec 데이터로 학습을 가장 먼저 돌린 것은 CFA이며, 그 첫 실행에서 §12.4의 `retain_graph` 버그가 실제로 재현되었다 — 합성 스모크가 놓친 결함이었다. 세 모델 모두 image/pixel AUROC 등 구체적인 수치는 아직 기록되지 않았고, 3개 카테고리(bottle·carpet·capsule) 기준 정식 성능 비교는 별도 진행 예정이다(§14 참조).
+DFM·DFKDE·CFA 세 모델 모두 사용자가 `scripts/train.py`·`evaluate.py`·`predict.py`를 직접 실행해 정상 동작을 확인했다(2026-08-23). 실제 MVTec 데이터로 학습을 가장 먼저 돌린 것은 CFA이며, 그 첫 실행에서 §12.4의 `retain_graph` 버그가 실제로 재현되었다 — 합성 스모크가 놓친 결함이었다. 세 모델 모두 image/pixel AUROC 등 구체적인 수치는 아직 기록되지 않았고, 3개 카테고리(bottle·carpet·capsule) 기준 정식 성능 비교는 별도 진행 예정이다(§15 참조).
 
-## 14. 미완 항목
+## 14. 모델 연결 — CFLOW
+
+### 14.1 `lightning_model.py` 이관 결과
+
+Upstream `Cflow`는 `automatic_optimization=False`로 선언하고 `training_step`에서 이미지 배치 하나를 fiber(`fiber_batch_size` 단위 feature-vector 조각)로 잘라 fiber마다 독립적으로 `opt.zero_grad()`/`self.manual_backward(loss.mean())`/`opt.step()`을 호출한다(기본 config·MVTec 256×256·batch 8 기준 배치당 약 168회 step). `configure_optimizers`는 decoder 파라미터만 모은 단일 Adam(lr=0.0001)을 반환한다. `validation_step`은 `self.model(batch.image)`만 호출해 공통 `AnomalyAdapter.eval_step`으로 흡수된다. `trainer_arguments`는 `gradient_clip_val=0`, `num_sanity_val_steps=0`이며 별도 calibration lifecycle은 없다.
+
+이 프로젝트의 공통 engine은 `adapter.train_step()` 1회당 정확히 1회의 zero_grad+backward+step만 수행하므로, fiber당 다회 step 구조를 그대로 옮길 수 없었다. `CflowAdapter`(`src/tasks/anomaly/adapters/cflow.py`)가 decoder 파라미터 전용 private `torch.optim.Adam`을 `on_fit_start`에서 만들고 `train_step` 내부에서 upstream과 동일한 순서로 fiber마다 zero_grad/backward/step을 수행한다. engine에 반환하는 loss는 `0.0 * parameter`를 decoder 전체에 합산한 더미 텐서라, engine 소유 optimizer(같은 decoder 파라미터를 대상으로 `build_optimizer`가 만든 것)는 항상 정확히 0인 gradient만 받아 Adam 모멘트가 영원히 0으로 유지되고 step이 no-op이 된다. 상세 근거와 검증은 `docs/dev/v0.2/reviews/A2.md` 참조.
+
+### 14.2 optimizer — decoder 전용 private optimizer (STFPM~CFA와 다른 패턴)
+
+기존 9개 모델은 모두 `build_optimizer`(공통 engine 소유, `model.parameters()` 중 `requires_grad=True`)만으로 학습이 성립했다. CFLOW는 fiber당 다회 step이 필요해 이 패턴이 성립하지 않아, adapter가 자체 optimizer를 갖는 첫 사례가 됐다. encoder는 기존 관례대로 factory(`build_cflow`)에서 `requires_grad=False`로 고정되며, `TimmFeatureExtractor.forward()`가 `requires_grad=False`일 때 내부적으로 `eval()`+`no_grad()`를 강제하므로 EfficientAD 방식의 instance-level `train()` 고정은 불필요하다(실측 확인).
+
+### 14.3 checkpoint resume 미지원 (알려진 한계)
+
+`CflowAdapter`의 private optimizer는 `state_dict()`/`load_state_dict()`를 구현하지 않고, 공통 engine도 `adapter_state`를 채워 넣지 않는다(`src/core/checkpoint.py`의 `adapter_state` 매개변수는 존재하나 `src/core/engine.py`가 사용하지 않는 기존 미완성 확장점). `--resume`으로 CFLOW를 이어서 학습하면 decoder 가중치·RNG는 정상 복원되지만 Adam 모멘텀은 0부터 다시 시작한다. 공통 engine 변경이 필요해 이번 세션 범위 밖으로 이월했다(§15).
+
+### 14.4 가중치 로드 판정
+
+`_load_backbone_weights`가 FastFlow·PatchCore·PaDiM·Reverse Distillation·DFM·DFKDE에 이어 CFLOW에도 복제됐다(§8.5, §15 참조 — 공통화는 별도 과제). 로드 대상은 `model.encoder.feature_extractor`(TimmFeatureExtractor 내부의 raw timm 모듈)이며, `model.encoder`(wrapper) 자체를 넘기면 `feature_extractor.` 접두사 불일치로 missing keys 오류가 난다는 것을 실제로 재현·수정하며 확인했다(PaDiM과 동일 패턴, `build_padim`의 주석 참조).
+
+## 15. 미완 항목
 
 - FastFlow `train.epochs: 100`은 잠정값이다. 핀된 클론에 `examples/configs`가 sparse-checkout되어 있지 않아 anomalib의 공식 학습 예산을 확인하지 못했다.
 - 3개 카테고리(bottle, carpet, capsule) 기준 정식 성능 비교(수치 기록) — **사용자 실행 대기**. PaDiM·Reverse Distillation·DFM·DFKDE·CFA 전부 포함. DFM·DFKDE·CFA는 실행 자체(정상 동작)는 2026-08-23 확인됐으나 AUROC 등 수치는 아직 없다(§13.1).
@@ -672,8 +692,11 @@ DFM·DFKDE·CFA 세 모델 모두 사용자가 `scripts/train.py`·`evaluate.py`
 - CFA `train.epochs: 30`은 CFA 논문 기준 잠정값이다(§12). 정식 학습으로 수렴 확인 필요.
 - DFM `score_type="nll"` 경로는 upstream 자체 버그(§10.4)로 막혀 있고, 이 프로젝트의 pixel-metric 파이프라인과도 연결돼 있지 않다 — 현재는 `"fre"` 고정 사용을 권장한다.
 - `postprocess/__init__.py`가 8개 이름을 re-export하지만 이를 경유하는 import가 한 곳도 없다. 실사용 공개 API는 `smooth_anomaly_map`·`to_output_dict`·`compute_thresholds`·`save_prediction_visualization` 4개이며, `best_f1_threshold`는 `compute_thresholds` 내부 헬퍼다(DFKDE의 `on_fit_end`가 직접 가져다 쓰면서 사실상 공개 API가 됐다). 공통 코드라 정리는 별도 과제다.
+- CFLOW `--resume`이 private decoder optimizer의 Adam 모멘텀을 보존하지 못한다 (§14.3, 적대적 검토 A2 Major). `src/core/checkpoint.py`의 `adapter_state` 매개변수는 이미 존재하나 `src/core/engine.py`가 채우지 않는 미완성 확장점이다 — 공통 engine에 adapter-state checkpoint 훅을 추가하는 별도 과제가 필요하며, CS-Flow 등 이후 fiber/2단계 학습 모델에서도 반복될 수 있다.
+- CFLOW의 `runtime.amp`/`train.grad_clip`이 private optimizer 경로에는 적용되지 않는다 (§14.1, §14.3). 기본 config(`amp: false`, `grad_clip: null`)에서는 무해하나, 이 값을 바꿔도 실제 decoder 업데이트에는 영향이 없다는 점을 사용자가 인지해야 한다.
+- CFLOW 3개 카테고리(bottle·carpet·capsule) 기준 정식 성능 비교 — **사용자 실행 대기**. bottle 1-epoch 스모크만 확인됨(image_auroc=1.000, pixel_auroc=0.985~0.987, §14.1).
 
 ---
 
 작성일: 2026-08-23
-문서 상태: FastFlow·PatchCore·PaDiM·Reverse Distillation·DFM·DFKDE·CFA 추가 산출물 (anomalib `091ca6a` 기준)
+문서 상태: FastFlow·PatchCore·PaDiM·Reverse Distillation·DFM·DFKDE·CFA·CFLOW 추가 산출물 (anomalib `091ca6a` 기준)

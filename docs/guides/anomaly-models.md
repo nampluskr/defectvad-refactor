@@ -17,8 +17,9 @@
 | Density Estimation | DFM | PCA 재구성 오차 또는 가우시안 NLL | 구현됨 | 지원 | 지원 | 지원 | `resnet50` | backbone 가중치 |
 | Density Estimation | DFKDE | PCA + Gaussian KDE (image-level만) | 구현됨 | 지원 | 지원(image-level) | 지원 | `resnet18` | backbone 가중치 |
 | Feature Embedding / Memory Bank | CFA | 좌표 인지 클러스터 중심까지의 거리 (gradient로 학습) | 구현됨 | 지원 | 지원 | 지원 | `wide_resnet50_2` | backbone 가중치 |
+| Normalizing Flow | CFLOW | fiber(feature-vector 조각) 단위 conditional normalizing flow | 구현됨 | 지원 (adapter 소유 private optimizer, §4.2) | 지원 | 지원 | `wide_resnet50_2` | backbone 가중치 |
 
-아홉 모델은 `src/tasks/anomaly/models/` 아래의 pure-PyTorch 모델과 `src/tasks/anomaly/adapters/` 아래의 lifecycle adapter로 구성된다. 학습 열의 `지원`은 gradient 학습만을 뜻하지 않는다. PatchCore의 학습 단계는 파라미터 최적화 대신 정상 이미지의 embedding을 수집하고 memory bank를 구축한다. DFKDE는 이미지 단위 anomaly score만 산출하므로 평가·시각화에서 pixel 단위 지표를 제공하지 않는다.
+열 모델은 `src/tasks/anomaly/models/` 아래의 pure-PyTorch 모델과 `src/tasks/anomaly/adapters/` 아래의 lifecycle adapter로 구성된다. 학습 열의 `지원`은 gradient 학습만을 뜻하지 않는다. PatchCore의 학습 단계는 파라미터 최적화 대신 정상 이미지의 embedding을 수집하고 memory bank를 구축한다. DFKDE는 이미지 단위 anomaly score만 산출하므로 평가·시각화에서 pixel 단위 지표를 제공하지 않는다.
 
 ## 2. 모델 분류 체계
 
@@ -39,6 +40,9 @@ EfficientAD는 teacher–student 구조와 autoencoder 기반 reconstruction을 
 사전 학습된 backbone feature를 invertible flow로 변환하여 정상 feature의 분포를 학습한다.
 
 - FastFlow
+- CFLOW
+
+FastFlow는 backbone feature map 전체를 2D spatial flow로 한 번에 변환한다. CFLOW는 feature map을 위치별 벡터("fiber")로 펼쳐 위치 정보로 조건화한 뒤 fiber 단위로 flow를 학습한다는 점이 다르다 — 이 학습 단위 차이 때문에 CFLOW는 이 프로젝트에서 유일하게 adapter가 자체 optimizer를 소유한다(§4.2).
 
 ### 2.3 Feature Embedding / Memory Bank
 
@@ -297,6 +301,36 @@ CFA는 고정된 pretrained backbone의 다중 계층 feature를 CoordConv 기�
 
 `--model.backbone` selector를 사용하면 `backbone`과 `weights_path`가 함께 변경된다. `num_nearest_neighbors`·`num_hard_negative_features`·`radius`는 `model.params`에만 선언한다 — `CfaAdapter.on_fit_start`가 이 값들을 `adapter.params`에 별도로 복제하는 대신 생성된 `CfaModel` 인스턴스에서 직접 읽어 `CfaLoss`를 구성하므로, anomaly map과 학습 손실이 서로 다른 하이퍼파라미터를 쓰게 될 여지가 없다.
 
+### 3.10 CFLOW
+
+CFLOW는 고정된 pretrained backbone의 다중 계층 feature를 conditional normalizing flow decoder로 변환해 정상 feature의 log-likelihood를 학습한다. Feature map을 위치별 벡터("fiber")로 펼친 뒤 위치 정보를 2D sinusoidal encoding으로 조건화하고, 레이어마다 독립된 invertible decoder(`FrEIA`의 `AllInOneBlock` 8개 결합)가 이 조건부 분포를 모델링한다. 추론 시에는 각 위치의 log-likelihood를 정상성 점수로 변환해 레이어별 맵을 합산·반전한 뒤 anomaly map을 만든다.
+
+- 모델 factory: `cflow_anomaly`
+- Adapter: `cflow`
+- Config: `configs/anomaly/models/cflow.yaml`
+- 기본 backbone: `wide_resnet50_2`
+- Selector: `--model.backbone wide_resnet50_2|resnet18`
+- 학습 대상: decoder(정규화 흐름) 네트워크만 — backbone은 고정
+- 로컬 자산: 선택한 backbone의 pretrained 가중치
+- 구현 특이사항: Upstream은 이미지 배치 하나를 `fiber_batch_size`(기본 64) 단위 조각으로 잘라 각 조각마다 별도로 optimizer step을 수행한다(256×256·batch 8·`wide_resnet50_2` 기준 배치당 약 168회). 이 프로젝트의 공통 engine은 `train_step` 호출당 정확히 1회의 step만 수행하므로, `CflowAdapter`가 decoder 파라미터 전용 `torch.optim.Adam`을 직접 소유하고 fiber마다 upstream과 동일한 순서로 즉시 step한다 — 공통 engine에는 손대지 않는다(§4.2 참조).
+- 알려진 한계: `--resume`은 이 private optimizer의 Adam 모멘텀을 보존하지 않는다(모델 가중치·RNG는 정상 복원). `runtime.amp`/`train.grad_clip`은 이 모델의 실제 decoder 업데이트에 영향을 주지 않는다(기본값에서는 무해). 상세는 `docs/dev/v0.2/reports/UPSTREAM-INVENTORY.md` §14, 적대적 검증 기록은 `docs/dev/v0.2/reviews/A2.md` 참조.
+
+#### 모델 파라미터
+
+| 파라미터 | 타입 | 기본값 | 지원값 | 설명 |
+|---|---|---|---|---|
+| `backbone` | `str` | `wide_resnet50_2` | Config selector: `wide_resnet50_2`, `resnet18` | feature 추출에 사용할 고정 backbone |
+| `weights_path` | `str \| None` | `${paths.backbone_root}/wide_resnet50_2-95faca4d.pth` | 선택한 backbone과 일치하는 로컬 파일 경로 | backbone에 적용할 pretrained 가중치 경로 |
+| `layers` | `list[str]` | `[layer2, layer3, layer4]` | backbone이 제공하는 layer 이름 목록 | feature를 추출할 backbone 레이어 |
+| `fiber_batch_size` | `int` | `64` | 양의 정수 | decoder 학습/추론 시 한 번에 처리할 feature-vector 조각 크기 |
+| `decoder` | `str` | `freia-cflow` | `freia-cflow` | invertible decoder 아키텍처 종류 |
+| `condition_vector` | `int` | `128` | 4의 배수인 양의 정수 | 위치 조건화에 사용할 벡터 길이 |
+| `coupling_blocks` | `int` | `8` | 양의 정수 | decoder당 coupling block 개수 |
+| `clamp_alpha` | `float` | `1.9` | 양수 | affine coupling의 clamp 값 |
+| `permute_soft` | `bool` | `false` | `true`/`false` | `true`면 SO(N) 소프트 순열 사용(고차원에서 느림) |
+
+`adapter.params.lr`(기본 `0.0001`)이 이 모델의 실제 학습률을 결정한다 — `optim.optimizer` config 블록은 공통 engine이 구조적으로 요구하지만 CFLOW에는 비활성이다(§4.2).
+
 ## 4. 공통 통합 구조
 
 ### 4.1 모델 코드와 SSOT
@@ -320,6 +354,9 @@ Adapter가 담당하는 모델별 동작은 다음과 같다.
 | DFM | feature 수집과 validation 전 PCA(및 nll 모드의 가우시안) 적합 |
 | DFKDE | feature 수집, validation 전 PCA+KDE 적합, image-level 전용 eval/predict/threshold 재정의 |
 | CFA | 학습 시작 전 memory bank 중심 초기화, hypersphere 손실 계산 |
+| CFLOW | fiber 단위 decoder loss 계산 및 **adapter 소유 private optimizer**로 fiber마다 즉시 step (§3.10) |
+
+CFLOW는 이 표의 다른 모델과 달리 공통 engine의 optimizer(model.parameters() 중 requires_grad=True 대상, `build_optimizer`가 구성)에 의존하지 않는다. Upstream이 이미지 배치 하나당 최대 수백 회의 개별 Adam step을 수행하는 구조라, `CflowAdapter`가 decoder 파라미터 전용 `torch.optim.Adam`을 직접 소유하고 `train_step` 안에서 그 step들을 수행한다. 공통 engine에 반환하는 loss는 이 실제 학습에 관여하지 않는 0-gradient 더미 값이다 — 자세한 근거는 §3.10과 `docs/dev/v0.2/reviews/A2.md` 참조.
 
 ### 4.3 Offline 실행
 
