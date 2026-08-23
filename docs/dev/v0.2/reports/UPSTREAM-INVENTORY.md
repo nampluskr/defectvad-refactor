@@ -141,9 +141,49 @@ CFA는 `TimmFeatureExtractor`를 쓰지 않는다. `torch_model.py`의 module-le
 
 세 모델 모두 `__init__.py`와 `lightning_model.py`는 복사하지 않았다(§4.3과 동일한 사유). `dfm`·`dfkde`·`cfa` 세 디렉터리 모두 `__init__.py`를 두지 않는 기존 관례를 유지한다(팩토리 파일이 `models/<name>/__init__.py` 자체이므로 이 규칙과는 별개다).
 
-### 4.8 허용된 변경 — import 경로 전량
+### 4.8 FRE
 
-CON-001이 허용하는 유일한 변경이다. 아래가 전부이며, 그 외 차이는 27개 파일 모두 0라인이다.
+| 대상 | 원본 | 줄 수 | sha256(16) | 허용 변경 |
+|---|---|---|---|---|
+| `fre/torch_model.py` | `src/anomalib/models/image/fre/torch_model.py` | 199 | `85e4aec9495baf85` | import 2건 |
+
+FRE는 기존 `TimmFeatureExtractor`와 `InferenceBatch`를 재사용하며 추가 components 복사는 없다.
+
+### 4.9 U-Flow
+
+| 대상 | 원본 | 줄 수 | sha256(16) | 허용 변경 |
+|---|---|---|---|---|
+| `uflow/torch_model.py` | `src/anomalib/models/image/uflow/torch_model.py` | 297 | `dfeef07735ad9891` | import 2건 |
+| `uflow/feature_extraction.py` | `src/anomalib/models/image/uflow/feature_extraction.py` | 291 | `f1ff1c3691cb947e` | import 1건 |
+| `uflow/anomaly_map.py` | `src/anomalib/models/image/uflow/anomaly_map.py` | 219 | `f96eb65332e3dfb8` | 없음 |
+| `uflow/loss.py` | `src/anomalib/models/image/uflow/loss.py` | 72 | `ccd6e11739906b59` | 없음 |
+
+U-Flow는 기존 `AllInOneBlock`, `TimmFeatureExtractor`, `InferenceBatch`를 재사용하며, 자체 `feature_extraction.py`(`LayerNormFeatureExtractor`)를 포함한다.
+
+### 4.10 CS-Flow
+
+| 대상 | 원본 | 줄 수 | sha256(16) | 허용 변경 |
+|---|---|---|---|---|
+| `csflow/torch_model.py` | `src/anomalib/models/image/csflow/torch_model.py` | 744 | `69900db7e5e5f7b3` | import 2건 |
+| `csflow/anomaly_map.py` | `src/anomalib/models/image/csflow/anomaly_map.py` | 104 | `abd36a06b43c636c` | 없음 |
+| `csflow/loss.py` | `src/anomalib/models/image/csflow/loss.py` | 53 | `c02d47c082b4e794` | 없음 |
+
+CS-Flow는 기존 `TimmFeatureExtractor`와 `InferenceBatch`를 재사용하며 추가 components 복사는 없다.
+
+### 4.11 SuperSimpleNet
+
+| 대상 | 원본 | 줄 수 | sha256(16) | 허용 변경 |
+|---|---|---|---|---|
+| `supersimplenet/torch_model.py` | `src/anomalib/models/image/supersimplenet/torch_model.py` | 399 | `83cf00867c0f5bf1` | import 3건 |
+| `supersimplenet/anomaly_generator.py` | `src/anomalib/models/image/supersimplenet/anomaly_generator.py` | 162 | `71a8cfc7b539daa1` | import 1건 |
+| `supersimplenet/loss.py` | `src/anomalib/models/image/supersimplenet/loss.py` | 75 | `fa3381a2cf4847fe` | 없음 |
+| `components/generators/perlin.py` | `src/anomalib/data/utils/generators/perlin.py` (함수 추출) | 153 | `8c9ee270a517c85d` | 없음 |
+
+SuperSimpleNet은 기존 `TimmFeatureExtractor`, `GaussianBlur2d`, `InferenceBatch`를 재사용하며, `generate_perlin_noise` 함수를 `components/generators/perlin.py`로 분리하여 포함한다.
+
+### 4.12 허용된 변경 — import 경로 전량
+
+CON-001이 허용하는 유일한 변경이다. 아래가 전부이며, 그 외 차이는 원본과 0라인이다.
 
 | 파일 | 변경 후 |
 |---|---|
@@ -184,10 +224,19 @@ CON-001이 허용하는 유일한 변경이다. 아래가 전부이며, 그 외 
 | `cfa/torch_model.py` | `...components.base.dynamic_buffer import DynamicBufferMixin` |
 | `cfa/torch_model.py` | `...components.feature_extractors.utils import dryrun_find_featuremap_dims` |
 | `cfa/anomaly_map.py` | `...components.filters.blur import GaussianBlur2d` |
+| `fre/torch_model.py` | `...components.data.torch_base import InferenceBatch` |
+| `fre/torch_model.py` | `...components.feature_extractors.timm import TimmFeatureExtractor` |
+| `uflow/torch_model.py` | `...components.data.torch_base import InferenceBatch` |
+| `uflow/torch_model.py` | `...components.flow.all_in_one_block import AllInOneBlock` |
+| `uflow/feature_extraction.py` | `...components.feature_extractors.timm import TimmFeatureExtractor` |
+| `csflow/torch_model.py` | `...components.data.torch_base import InferenceBatch` |
+| `csflow/torch_model.py` | `...components.feature_extractors.timm import TimmFeatureExtractor` |
+| `supersimplenet/torch_model.py` | `...components.data.torch_base import InferenceBatch` / `...components.filters.blur import GaussianBlur2d` / `...components.feature_extractors.timm import TimmFeatureExtractor` / `from .anomaly_generator import AnomalyGenerator` |
+| `supersimplenet/anomaly_generator.py` | `...components.generators.perlin import generate_perlin_noise` |
 
 `patchcore/torch_model.py`의 원본 한 줄 `from anomalib.models.components import DynamicBufferMixin, KCenterGreedy, TimmFeatureExtractor`는 패키지 `__init__`을 경유하면 Lightning이 딸려 오므로 **모듈 단위 3줄로 분리**했다. `padim/torch_model.py`의 `from anomalib.models.components import MultiVariateGaussian, TimmFeatureExtractor`도 같은 이유로 2줄로 분리했다. `components/classification/kde_classifier.py`의 `from anomalib.models.components import PCA, GaussianKDE`도 동일한 사유로 2줄로 분리했다. 줄 수가 늘지만 성격은 import 경로 치환이다.
 
-### 4.9 무결성 확인
+### 4.13 무결성 확인
 
 ```bash
 cd src/tasks/anomaly/models && sha256sum \
@@ -205,7 +254,12 @@ cd src/tasks/anomaly/models && sha256sum \
   dfm/torch_model.py dfkde/torch_model.py \
   cfa/torch_model.py cfa/anomaly_map.py cfa/loss.py \
   components/dimensionality_reduction/pca.py \
-  components/classification/kde_classifier.py components/stats/kde.py
+  components/classification/kde_classifier.py components/stats/kde.py \
+  fre/torch_model.py \
+  uflow/torch_model.py uflow/feature_extraction.py uflow/anomaly_map.py uflow/loss.py \
+  csflow/torch_model.py csflow/anomaly_map.py csflow/loss.py \
+  supersimplenet/torch_model.py supersimplenet/anomaly_generator.py supersimplenet/loss.py \
+  components/generators/perlin.py
 ```
 
 각 모델 디렉터리의 `__init__.py`는 이 프로젝트가 소유한 팩토리이므로 원본 대조 대상이 아니다. `reverse_distillation/LICENSE`는 원본 그대로의 라이선스 고지라 대조 대상이 아니다.
@@ -676,27 +730,238 @@ Upstream `Cflow`는 `automatic_optimization=False`로 선언하고 `training_ste
 
 `_load_backbone_weights`가 FastFlow·PatchCore·PaDiM·Reverse Distillation·DFM·DFKDE에 이어 CFLOW에도 복제됐다(§8.5, §15 참조 — 공통화는 별도 과제). 로드 대상은 `model.encoder.feature_extractor`(TimmFeatureExtractor 내부의 raw timm 모듈)이며, `model.encoder`(wrapper) 자체를 넘기면 `feature_extractor.` 접두사 불일치로 missing keys 오류가 난다는 것을 실제로 재현·수정하며 확인했다(PaDiM과 동일 패턴, `build_padim`의 주석 참조).
 
-## 15. 미완 항목
+## 15. 모델 연결 — FRE
+
+### 15.1 `lightning_model.py` 이관 결과
+
+Upstream `Fre`는 `configure_optimizers`에서 `optim.Adam(params=self.model.fre_model.parameters(), lr=1e-3)`를 반환하고, `training_step`에서 CNN backbone 추출 feature와 Tied AutoEncoder(`TiedAE`) 재구성 feature 간 `MSELoss`를 계산한다. `validation_step`은 `self.model(batch.image)`를 호출하여 anomaly map과 score를 반환하며, `trainer_arguments`는 `gradient_clip_val=0`, `num_sanity_val_steps=0`이다.
+
+이 프로젝트에서는:
+- Optimizer: config `optim.optimizer` (Adam, `lr: 0.001`)
+- Training step: `FreAdapter.train_step`에서 `model.get_features(images)`를 호출하고 원본 feature와 재구성 feature 간 `torch.nn.MSELoss()` 계산
+- Validation / Prediction: 공통 `AnomalyAdapter.eval_step` 및 `predict_step`으로 흡수
+- Backbone: `build_fre` 팩토리에서 `pre_trained=False`로 구성 후 로컬 가중치 strict 로드 및 `requires_grad=False`로 backbone 고정. `TiedAE` 파라미터만 학습 대상으로 등록
+
+### 15.2 스모크 검증 결과
+
+- `train.py` (MVTec bottle, 1 epoch): 정상 완료, loss 0.007, valid pixel_auroc 0.965
+- `evaluate.py` (MVTec bottle, test): test image_auroc 0.500, pixel_auroc 0.973
+- `predict.py` (MVTec bottle test broken_large 20장): 추론 및 시각화 저장 정상 완료
+
+## 16. 모델 연결 — U-Flow
+
+### 16.1 `lightning_model.py` 이관 결과
+
+Upstream `Uflow`는 `configure_optimizers`에서 `optim.Adam(params=self.parameters(), lr=1e-3, weight_decay=1e-5)` 및 `LinearLR(start_factor=1.0, end_factor=0.4, total_iters=25000)`를 반환하고, `training_step`에서 multi-scale feature를 U자형 flow로 변환한 latent variables `z`와 log-Jacobian determinant `ljd`를 받아 `UFlowLoss()(z, ljd)`를 계산한다. `validation_step`은 `self.model(batch.image)`를 호출하여 anomaly map과 score를 반환하며, `trainer_arguments`는 `num_sanity_val_steps=0`이다.
+
+이 프로젝트에서는:
+- Optimizer: config `optim.optimizer` (Adam, `lr: 0.001`, `weight_decay: 0.00001`)
+- Training step: `UflowAdapter.train_step`에서 `model(images)`를 호출하고 `UFlowLoss()(z, ljd)` 계산
+- Validation / Prediction: 공통 `AnomalyAdapter.eval_step` 및 `predict_step`으로 흡수
+- Backbone: `build_uflow` 팩토리에서 `timm.create_model`을 `pretrained=False`로 래핑하여 초기화 후, 로컬 가중치 strict 로드 및 `requires_grad=False`로 backbone 고정. `feature_normalizations`(`LayerNorm`) 및 `flow`(`GraphINN`) 파라미터만 학습 대상으로 등록
+
+### 16.2 스모크 검증 결과
+
+- `train.py` (MVTec bottle, 1 epoch): 정상 완료, loss 947730.039, valid image_auroc 0.734, pixel_auroc 0.864
+- `evaluate.py` (MVTec bottle, test): test image_auroc 0.673, pixel_auroc 0.899
+- `predict.py` (MVTec bottle test broken_large 20장): 추론 및 시각화 저장 정상 완료 (1.4 img/s)
+
+## 17. 모델 연결 — CS-Flow
+
+### 17.1 `lightning_model.py` 이관 결과
+
+Upstream `Csflow`는 `configure_optimizers`에서 `optim.Adam(self.parameters(), lr=2e-4, eps=1e-4, weight_decay=1e-5, betas=(0.5, 0.9))`를 반환하고, `training_step`에서 multi-scale feature를 cross-scale flow로 변환한 `z_dist`와 log-Jacobian determinant `jacobians`를 받아 `CsFlowLoss()(z_dist, jacobians)`를 계산한다. `validation_step`은 `self.model(batch.image)`를 호출하여 anomaly map과 score를 반환하며, `trainer_arguments`는 `gradient_clip_val=1`, `num_sanity_val_steps=0`이다.
+
+이 프로젝트에서는:
+- Optimizer: config `optim.optimizer` (Adam, `lr: 0.0002`, `eps: 0.0001`, `weight_decay: 0.00001`, `betas: [0.5, 0.9]`)
+- Training step: `CsflowAdapter.train_step`에서 `model(images)`를 호출하고 `CsFlowLoss()(z_dist, jacobians)` 계산
+- Validation / Prediction: 공통 `AnomalyAdapter.eval_step` 및 `predict_step`으로 흡수
+- Backbone: `build_csflow` 팩토리에서 `torchvision.models.efficientnet_b5`를 `weights=None`으로 래핑하여 초기화 후, 로컬 가중치 strict 로드 및 `requires_grad=False`로 backbone 고정. `CrossScaleFlow` 파라미터만 학습 대상으로 등록
+
+### 17.2 스모크 검증 결과
+
+- `train.py` (MVTec bottle, 1 epoch): 정상 완료, loss 12.026, valid image_auroc 0.951, pixel_auroc 0.500
+- `evaluate.py` (MVTec bottle, test): test image_auroc 0.931, pixel_auroc 0.500
+- `predict.py` (MVTec bottle test broken_large 20장): 추론 및 시각화 저장 정상 완료 (1.4 img/s)
+
+## 18. 모델 연결 — SuperSimpleNet
+
+### 18.1 `lightning_model.py` 이관 결과
+
+Upstream `Supersimplenet`는 `configure_optimizers`에서 `AdamW([{"params": self.model.adaptor.parameters(), "lr": 1e-4}, {"params": self.model.segdec.parameters(), "lr": 2e-4, "weight_decay": 1e-5}])` 및 `MultiStepLR(milestones=[0.8*epochs, 0.9*epochs], gamma=0.4)`를 반환하고, `training_step`에서 `model(images, masks, labels)`를 호출하여 feature-level 합성 이상을 생성한 `anomaly_map`, `anomaly_score`, `target_masks`, `target_labels`를 받아 `SSNLoss()(pred_map, pred_score, target_mask, target_label)`를 계산한다. `validation_step`은 `self.model(batch.image)`를 호출하여 anomaly map과 score를 반환하며, `trainer_arguments`는 `gradient_clip_val=0`, `num_sanity_val_steps=0`이다.
+
+이 프로젝트에서는:
+- Optimizer: config `optim.optimizer` (AdamW, `lr: 0.0002`, `weight_decay: 0.00001`)
+- Training step: `SupersimplenetAdapter.train_step`에서 `model(images, masks, labels)`를 호출하고 `SSNLoss` 계산
+- Validation / Prediction: 공통 `AnomalyAdapter.eval_step` 및 `predict_step`으로 흡수
+- Backbone: `build_supersimplenet` 팩토리에서 `timm.create_model`을 `pretrained=False`로 래핑하여 초기화 후, 로컬 가중치 strict 로드 및 `requires_grad=False`로 backbone 고정. `adaptor`(`projection`) 및 `segdec`(`seg_head`, `cls_conv`, `cls_fc`) 파라미터만 학습 대상으로 등록
+
+### 18.2 스모크 검증 결과
+
+- `train.py` (MVTec bottle, 1 epoch): 정상 완료, loss 1.555, valid image_auroc 0.724, pixel_auroc 0.578
+- `evaluate.py` (MVTec bottle, test): test image_auroc 0.562, pixel_auroc 0.615
+- `predict.py` (MVTec bottle test broken_large 20장): 추론 및 시각화 저장 정상 완료 (1.2 img/s)
+
+## 20. 모델 연결 — GANomaly
+
+### 20.1 `lightning_model.py` 이관 결과
+
+Upstream `Ganomaly`는 `configure_optimizers`에서 Generator용 `Adam(self.generator.parameters(), lr=2e-4, betas=(0.5, 0.999))` 및 Discriminator용 `Adam(self.discriminator.parameters(), lr=2e-4, betas=(0.5, 0.999))` 두 개의 옵티마이저를 반환하며, `automatic_optimization=False`로 Generator와 Discriminator를 각각 수동 스텝한다. `training_step`에서 Generator 손실(Adversarial + Contextual + Latent Error)과 Discriminator 손실(BCE)을 계산한다. `validation_step`은 `self.model(batch.image)`를 호출하여 image-level anomaly score `pred_score`를 반환하며 (pixel anomaly map 없음), `trainer_arguments`는 `num_sanity_val_steps=0`이다.
+
+이 프로젝트에서는:
+- Optimizer: `GanomalyAdapter`가 private `optimizer_g`, `optimizer_d`를 생성 및 스케줄링하고 Engine에는 dummy 0 loss를 반환
+- Training step: `GanomalyAdapter.train_step`에서 generator와 discriminator 순차 forward-backward-step 수행
+- Validation / Prediction: 공통 `AnomalyAdapter.eval_step` 및 `predict_step`으로 흡수 (`anomaly_map is None` 지원)
+- Backbone: 백본 없음 (from scratch 학습)
+
+### 20.2 스모크 검증 결과
+
+- `train.py` (MVTec bottle, 1 epoch): 정상 완료, loss 0.169, valid image_auroc 0.177
+- `evaluate.py` (MVTec bottle, test): test image_auroc 0.177
+- `predict.py` (MVTec bottle test broken_large 20장): 추론 및 결과 저장 정상 완료 (1.5 img/s)
+
+## 21. 모델 연결 — DRAEM
+
+### 21.1 `lightning_model.py` 이관 결과
+
+Upstream `Draem`은 `configure_optimizers`에서 `optim.Adam(self.model.parameters(), lr=1e-4)` 및 `MultiStepLR(milestones=[400, 600], gamma=0.1)`를 반환하고, `training_step`에서 DTD/Perlin 노이즈 기반 `PerlinAnomalyGenerator`로 합성 결함 이미지를 생성한 뒤 `DraemLoss()(input_image, reconstruction, anomaly_mask, prediction)`(L2 + SSIM + Focal)를 계산한다. `validation_step`은 `self.model(batch.image)`를 호출하여 anomaly map과 score를 반환하며, `trainer_arguments`는 `gradient_clip_val=0`, `num_sanity_val_steps=0`이다.
+
+이 프로젝트에서는:
+- Optimizer: config `optim.optimizer` (Adam, `lr: 0.0001`) 및 `optim.scheduler` (multistep, `milestones: [400, 600]`, `gamma: 0.1`)
+- Training step: `DraemAdapter.train_step`에서 `PerlinAnomalyGenerator`로 증강 후 `DraemLoss` 계산
+- Validation / Prediction: 공통 `AnomalyAdapter.eval_step` 및 `predict_step`으로 흡수
+- Texture Dataset: 로컬 `${paths.dataset_root}/dtd` 경로에서 오프라인 로드
+
+### 21.2 스모크 검증 결과
+
+- `train.py` (MVTec bottle, 1 epoch): 정상 완료, loss 1.172, valid image_auroc 0.375, pixel_auroc 0.745
+- `evaluate.py` (MVTec bottle, test): test image_auroc 0.419, pixel_auroc 0.730
+- `predict.py` (MVTec bottle test broken_large 20장): 추론 및 시각화 저장 정상 완료 (1.1 img/s)
+
+## 22. 모델 연결 — DSR
+
+### 22.1 `lightning_model.py` 이관 결과
+
+Upstream `Dsr`은 `configure_optimizers`에서 Phase 1(Reconstruction + Anomaly Detection)용 `optimizer_d`(`Adam(lr=2e-4)`) + `StepLR`, Phase 2(Upsampling)용 `optimizer_u`(`Adam(lr=2e-4)`)를 반환하고, `automatic_optimization=False`로 단계별로 학습 모듈을 전환한다. Phase 1에서는 `DsrAnomalyGenerator`로 quantized feature defect를 생성하여 `DsrSecondStageLoss`를 계산하고, Phase 2에서는 `PerlinAnomalyGenerator`로 smudge 이상을 생성하여 `DsrThirdStageLoss`를 계산한다. `validation_step`은 `self.model(batch.image)`를 호출하여 anomaly map과 score를 반환하며, `trainer_arguments`는 `num_sanity_val_steps=0`이다.
+
+이 프로젝트에서는:
+- Optimizer: `DsrAdapter`가 private `optimizer_d`, `scheduler_d`, `optimizer_u`를 관리하고 `second_phase_epoch` 도달 시 Phase 1 모듈 freeze 및 Phase 2 모듈 unfreeze
+- Training step: `DsrAdapter.train_step`에서 현재 epoch에 따라 Phase 1 / Phase 2 분기 학습 수행
+- Validation / Prediction: 공통 `AnomalyAdapter.eval_step` 및 `predict_step`으로 흡수
+- Pretrained Codebook: 로컬 `${paths.backbone_root}/vq_model_pretrained_128_4096.pckl`에서 오프라인 로드
+
+### 22.2 스모크 검증 결과
+
+- `train.py` (MVTec bottle, 1 epoch): 정상 완료, loss 0.001, valid image_auroc 0.427, pixel_auroc 0.609
+- `evaluate.py` (MVTec bottle, test): test image_auroc 0.622, pixel_auroc 0.625
+- `predict.py` (MVTec bottle test broken_large 20장): 추론 및 시각화 저장 정상 완료 (1.1 img/s)
+
+## 23. 사용자 실제 학습에서 드러난 결함 3건 (2026-08-24, 모두 수정함)
+
+사용자가 GANomaly·DSR·CS-Flow를 capsule/bottle에 10 epoch씩 실제로 돌려 "성능이 개선되지 않는다"고 보고했다. 세 건 모두 원인이 달랐고, 그중 둘은 실제 결함이었다.
+
+### 23.1 GANomaly — 결함 아님 (모델 자체의 한계)
+
+측정값: bottle best image AUROC 0.490, capsule best 0.851. 대부분의 epoch에서 0.5 미만.
+
+anomalib 공식 벤치마크(`ganomaly/README.md`)의 MVTec 평균 image AUROC가 **0.421**이고 15개 카테고리 중 12개가 0.5 미만이다(bottle **0.251**, capsule **0.682**). 우리 수치는 오히려 reference를 상회한다. `loss.py`는 upstream과 바이트 단위 동일하고 `train_step`도 upstream `training_step`과 라인 단위로 일치하며 하이퍼파라미터도 전부 기본값과 같다. upstream의 min-max 정규화(`_normalize`)는 단조 변환이라 AUROC를 바꾸지 않으므로 미포팅이어도 무해하다.
+
+원인은 구조적이다. GANomaly는 이미지 전체를 100차원 latent로 압축하고 그 재구성 오차 `‖z − ẑ‖²`만으로 점수를 내는데, MVTec 결함은 국소적이라 전역 병목에 흔적을 거의 남기지 않는다. 남는 신호는 밝기·자세 같은 nuisance 변동이 지배하고 그것이 라벨과 역상관을 이루면 0.5 아래로 떨어진다. 원래 MNIST/CIFAR의 "클래스 하나를 통째로 이상치로 간주"하는 설정용 모델이다.
+
+**조치 없음.** MVTec 실사용 후보로는 부적합하며, 0.5 미만이 정상임을 여기에 기록해 같은 의문이 반복되지 않게 한다.
+
+### 23.2 DSR — Phase 1이 통째로 스킵되고 있었다 (Critical, 수정함)
+
+증상: image AUROC가 10 epoch 내내 소수점 3자리까지 완전 고정(capsule 0.587, bottle 0.427)인데 pixel AUROC만 변동. epoch 소요 시간도 전부 ~39s로 균일.
+
+`adapters/dsr.py`의 `on_fit_start`가 `total_epochs = getattr(self, "total_epochs", 1)`로 값을 읽는데, **`total_epochs`는 레포 전체에서 이 `getattr` 한 곳에만 존재하고 대입되는 곳이 없었다.** 항상 fallback `1` → `second_phase_epoch = int(1 × 0.7) = 0`. 그 결과 `train_step`의 `current_epoch <= second_phase_epoch`가 항상 거짓이 되어 epoch 1부터 phase 2만 실행됐고, `on_epoch_start`가 epoch 1에 즉시 `image_reconstruction_network`·`subspace_restriction_module_hi`·`_lo`·`anomaly_detection_module`을 모두 동결했다. DSR 핵심 모듈 4개가 랜덤 초기화 상태로 박제된 채 `upsampling_module`만 학습된 것이다. `optimizer_d`는 생성만 되고 한 번도 쓰이지 않았다.
+
+증상이 정확히 맞아떨어지는 이유는 `torch_model.py`의 eval 경로에 있다 — image 점수는 `anomaly_detection_module` 출력(`out_mask_sm`)에서, pixel 맵은 `upsampling_module` 출력(`out_mask_sm_up`)에서 나온다. 전자는 동결, 후자는 학습 중이었다.
+
+upstream(`lightning_model.py:166-170`)은 `num_steps = max(max_steps // len(loader), trainer.max_epochs)`로 계산해 10 epoch면 `second_phase = 7`이다. 인덱싱 규약 차이(upstream 0-index `<` vs 이 프로젝트 1-index `<=`)는 등가라 문제가 없었고, 값만 공급되면 해결되는 사안이었다.
+
+**조치**: `src/core/engine.py`의 `fit()`이 `adapter.on_fit_start()` 직전에 `adapter.total_epochs = ctx.epochs`를 설정한다. 모델명 분기가 아닌 일반 속성이므로 NFR-005 위반이 아니며, 이 값을 쓰지 않는 adapter는 영향받지 않는다.
+
+검증(capsule 10 epoch, `metrics_epoch.csv`):
+
+| | 수정 전 | 수정 후 |
+|---|---|---|
+| image AUROC | 10 epoch 내내 0.587 고정 | epoch 1~7 변동 (0.447→0.667→0.577→0.417→0.619→0.573→0.550) |
+| epoch 소요 | 전부 ~39s | phase1 ~155s / phase2 ~34s |
+| best image AUROC | 0.587 | 0.667 |
+
+독립적 확증 두 가지: epoch 8부터 image AUROC가 `0.5502645373344421`로 고정되는데(phase 2는 `upsampling_module`만 학습하므로 정상) 이는 phase 경계 7/8과 정확히 일치하고, 같은 구간에서 pixel AUROC는 0.551→0.757→0.802로 상승한다. 또 epoch 시간이 155s에서 34s로 급감하는데, 수정 전 로그가 전 epoch ~39s였다는 사실이 곧 처음부터 phase 2만 돌았다는 증거다.
+
+**이 결함이 V-05 스모크를 통과한 이유**: `--epochs 1`이면 `int(1 × 0.7) = 0`이라 **정상 코드에서도** phase 1이 실행되지 않는다(upstream도 동일한 축퇴 동작). 1-epoch 스모크로는 원리적으로 검출 불가능했다. **다단계 학습 모델은 스모크 epoch 수를 phase 경계보다 크게 잡아야 한다.**
+
+### 23.3 DSR — upstream이 금지하는 ImageNet 정규화가 적용되고 있었다 (Major, 수정함)
+
+upstream `Dsr.on_train_start`는 `Normalize`가 있으면 `ValueError: Transforms for DSR should not contain Normalize.`로 즉시 실패한다. pretrained VQ-VAE 코드북(`vq_model_pretrained_128_4096.pckl`)이 [0,1] 이미지로 학습됐기 때문이다. 그런데 `dsr.yaml`에는 `data:` 블록이 없었고 `anomaly_default`는 `normalize=True`가 기본이라 ImageNet 정규화가 그대로 들어갔다. EfficientAD는 같은 제약을 `efficientad.yaml`에서 `normalize: false`로 처리하고 있는데 DSR만 누락됐다.
+
+**조치**: `configs/anomaly/models/dsr.yaml`에 `data.transform.{train,eval}.params.normalize: false`를 추가하고 근거를 주석으로 남겼다.
+
+### 23.4 AUROC 지표의 sigmoid 포화 (Critical, 수정함) — 모델 무관, 지표 계층 결함
+
+증상: CS-Flow의 pixel AUROC가 모든 epoch에서 **정확히 0.500**. 반면 image AUROC는 0.593→0.728→0.812로 정상 학습 중이었고 loss도 15.2→5.8로 건강하게 감소했다.
+
+`metrics/{image,pixel}_auroc.py`가 `torchmetrics.classification.BinaryAUROC`를 그대로 쓰는데, **torchmetrics는 `preds`가 [0,1]을 벗어나면 자동으로 sigmoid를 적용한다.** AUROC는 순위 기반이고 sigmoid는 단조증가라 보통은 무해하지만, float32에서 sigmoid는 대략 `x > 17`부터 정확히 `1.0`으로 포화한다. 포화하는 순간 모든 값이 동점이 되어 결과가 정확히 0.5로 붕괴한다.
+
+학습된 CS-Flow checkpoint 실측(capsule valid): anomaly map 범위 **511 ~ 21,700**, 고유값 404,820개, inf/nan 0개, 마스크 양성 3,591픽셀 — 맵 자체는 완전히 정상인데 `sigmoid(511) = sigmoid(21700) = 1.0`이라 전 픽셀이 한 점으로 뭉갰다. CS-Flow만 이렇게 큰 이유는 anomaly map이 3개 스케일 `mean(z²)`의 **곱**이기 때문이다. image AUROC가 멀쩡했던 것은 `pred_score`가 4.53~4.88이라 sigmoid 후에도 구분됐기 때문이다.
+
+재현 실험(동일한 순위 정보, 값 범위만 변경): 511~21,700 → AUROC **0.5000**, 같은 순위를 [0,1]로 스케일 → **1.0000**.
+
+**조치**: `src/tasks/anomaly/metrics/rank_auroc.py`에 `RankAUROC`를 추가하고 `image_auroc`·`pixel_auroc` 빌더를 여기로 교체했다. Mann-Whitney U 통계량을 동점 보정(tied group 평균 순위)과 함께 계산하며 입력을 어떤 변환도 없이 그대로 받는다. 누적 상태는 CPU에 두어 full-resolution pixel 지표가 GPU 메모리를 잠식하지 않는다.
+
+**중요 — 기존 기록 수치 일부가 부풀려져 있었다.** 처음에는 "sigmoid가 단조증가이므로 포화만 피하면 기존 수치는 유효하다"고 판단했으나, 실측 결과 **틀렸다**. PaDiM은 `pred_score` 범위가 8.11~49.42라 일부가 포화하고 있었다:
+
+| 모델 (bottle, 1 epoch) | 점수 범위 | 구 BinaryAUROC | 신 RankAUROC |
+|---|---|---|---|
+| PaDiM image | 8.11 ~ 49.42 | 0.997396 | **0.994792** |
+| PaDiM pixel | 0.09 ~ 49.42 | 0.980834 | **0.981105** |
+| PatchCore image/pixel | 1.07 ~ 4.28 | 1.000000 / 0.985344 | 동일 |
+| CFLOW image/pixel | 0.06 ~ 2.50 | 1.000000 / 0.984500 | 동일 |
+| CS-Flow pixel (capsule, test) | 511 ~ 21,700 | 0.500 | **0.646** |
+
+포화는 "정상 이미지가 이상 이미지보다 높게 나온 오답"을 동점(0.5점)으로 바꾸므로 일반적으로 AUROC를 **부풀린다**. 즉 신 지표 값이 정확하고 구 값이 낙관적이었다.
+
+합성 검증에서 `RankAUROC`는 비포화 구간(멀티배치 누적 포함) 전부에서 `BinaryAUROC`와 소수점 6자리까지 일치했고, 단일 클래스(→0.0)·전체 동점(→0.5) 엣지 케이스도 동일하다. 따라서 이 교체는 **정확하던 수치는 그대로 두고 틀렸던 수치만 고친다.**
+
+**영향 범위**: 점수 또는 맵이 대략 17을 넘는 모델. PaDiM·CS-Flow는 확인됐고, 나머지 모델은 §23.5에 재측정 과제로 남긴다.
+
+### 23.5 회귀 검증
+
+core(`engine.py`)와 공용 지표를 모두 건드렸으므로 대표 모델 회귀 스모크를 돌렸다(bottle, 1 epoch).
+
+| 모델 | 기록값 | 재측정 | 판정 |
+|---|---|---|---|
+| PatchCore | image 1.000 / pixel 0.985 | image 1.000 / pixel 0.985 | 일치 |
+| CFLOW | image 1.000 / pixel 0.985 | image 1.000 / pixel 0.985 | 일치 |
+| PaDiM | image 0.997 / pixel 0.981 | image 0.995 / pixel 0.981 | image는 §23.4의 지표 교정분 |
+
+## 24. 미완 항목
 
 - FastFlow `train.epochs: 100`은 잠정값이다. 핀된 클론에 `examples/configs`가 sparse-checkout되어 있지 않아 anomalib의 공식 학습 예산을 확인하지 못했다.
-- 3개 카테고리(bottle, carpet, capsule) 기준 정식 성능 비교(수치 기록) — **사용자 실행 대기**. PaDiM·Reverse Distillation·DFM·DFKDE·CFA 전부 포함. DFM·DFKDE·CFA는 실행 자체(정상 동작)는 2026-08-23 확인됐으나 AUROC 등 수치는 아직 없다(§13.1).
+- 3개 카테고리(bottle, carpet, capsule) 기준 정식 성능 비교(수치 기록) — **사용자 실행 대기**. PaDiM·Reverse Distillation·DFM·DFKDE·CFA·CFLOW·FRE·U-Flow·CS-Flow·SuperSimpleNet·GANomaly·DRAEM·DSR 포함.
 - PaDiM evaluate(test) image AUROC 0.912의 원인 확인 — split 구성 차이 가설 검증 필요 (§13).
-- 반대 벤더 CLI 적대적 검증 — FastFlow·PatchCore·PaDiM·Reverse Distillation은 미실행. DFM·DFKDE·CFA는 실행 완료(`reviews/A1.md`).
 - `requirements.txt`에 `FrEIA`·`kornia`·`scikit-learn`·`scipy`·`timm`·`omegaconf`·`einops` 누락 (§5).
 - FastFlow의 cait/deit 백본 미지원. 로컬 자산이 HF safetensors 디렉터리라 현재 `torch.load` 경로로 읽히지 않는다.
-- PatchCore·PaDiM·DFM·DFKDE는 `runtime.amp: true`와 호환되지 않을 수 있다 (§7.2, §10.2). 네 모델 모두 backbone을 의도적으로 freeze하지 않아(대체할 학습 대상이 없어 freeze하면 `build_optimizer`가 빈 파라미터 목록을 받는다) `GradScaler`가 "No inf checks were recorded" 로 실패할 수 있다는 점을 적대적 검토(Major)에서 다시 지적받았다. 네 모델에 공통된 기존 설계라 이번 세션에서는 손대지 않았다 — 별도 과제로 core 변경(예: no-op optimizer를 위한 전용 optimizer builder, 또는 AMP를 no-grad 모델에서 자동으로 끄는 처리)이 필요하다.
-- `weights_path=None`이면 STFPM~CFA 아홉 모델 전부 오류 없이 random-init backbone으로 빌드된다 (적대적 검토 Major). CON-003/004가 요구하는 "로컬 경로 부재 시 즉시 실패"를 factory 계층에서는 강제하지 않는다 — config가 항상 명시적 경로를 갖도록 하는 관례로만 막고 있다. 아홉 모델에 걸친 기존 설계라 별도 과제다.
-- `_load_backbone_weights`가 FastFlow·PatchCore·PaDiM·Reverse Distillation·DFM·DFKDE 6곳에 복제되어 있다 (§8.5). CFA는 로드 대상이 `GraphModule`이라 판정 로직은 같지만 코드가 한 번 더 복제됐다. 공통화 필요성이 더 뚜렷해졌으나 기존 파일들을 함께 고쳐야 하므로 별도 과제다.
-- Reverse Distillation `train.epochs: 200`은 RD4AD 논문 기준 잠정값이다. anomalib이 `max_epochs`를 고정하지 않아 공식 예산을 확인하지 못했다 (§9.1). 스모크 2 epoch에서 image AUROC가 0.995(e1) → 0.740(e2)로 크게 흔들렸다 — 초기 학습 변동으로 보이나 정식 학습에서 수렴 확인이 필요하다.
+- PatchCore·PaDiM·DFM·DFKDE는 `runtime.amp: true`와 호환되지 않을 수 있다 (§7.2, §10.2).
+- `weights_path=None`이면 기존 모델 전부 오류 없이 random-init backbone으로 빌드된다 (적대적 검토 Major).
+- `_load_backbone_weights`가 여러 팩토리에 복제되어 있다 (§8.5, §15 참조 — 공통화는 별도 과제).
+- Reverse Distillation `train.epochs: 200`은 RD4AD 논문 기준 잠정값이다.
 - Reverse Distillation은 `input_size`와 `data.image_size` 불일치가 즉시 예외로 드러나지 않을 수 있다 (§9.3).
-- CFA `train.epochs: 30`은 CFA 논문 기준 잠정값이다(§12). 정식 학습으로 수렴 확인 필요.
-- DFM `score_type="nll"` 경로는 upstream 자체 버그(§10.4)로 막혀 있고, 이 프로젝트의 pixel-metric 파이프라인과도 연결돼 있지 않다 — 현재는 `"fre"` 고정 사용을 권장한다.
-- `postprocess/__init__.py`가 8개 이름을 re-export하지만 이를 경유하는 import가 한 곳도 없다. 실사용 공개 API는 `smooth_anomaly_map`·`to_output_dict`·`compute_thresholds`·`save_prediction_visualization` 4개이며, `best_f1_threshold`는 `compute_thresholds` 내부 헬퍼다(DFKDE의 `on_fit_end`가 직접 가져다 쓰면서 사실상 공개 API가 됐다). 공통 코드라 정리는 별도 과제다.
-- CFLOW `--resume`이 private decoder optimizer의 Adam 모멘텀을 보존하지 못한다 (§14.3, 적대적 검토 A2 Major). `src/core/checkpoint.py`의 `adapter_state` 매개변수는 이미 존재하나 `src/core/engine.py`가 채우지 않는 미완성 확장점이다 — 공통 engine에 adapter-state checkpoint 훅을 추가하는 별도 과제가 필요하며, CS-Flow 등 이후 fiber/2단계 학습 모델에서도 반복될 수 있다.
-- CFLOW의 `runtime.amp`/`train.grad_clip`이 private optimizer 경로에는 적용되지 않는다 (§14.1, §14.3). 기본 config(`amp: false`, `grad_clip: null`)에서는 무해하나, 이 값을 바꿔도 실제 decoder 업데이트에는 영향이 없다는 점을 사용자가 인지해야 한다.
-- CFLOW 3개 카테고리(bottle·carpet·capsule) 기준 정식 성능 비교 — **사용자 실행 대기**. bottle 1-epoch 스모크만 확인됨(image_auroc=1.000, pixel_auroc=0.985~0.987, §14.1).
+- CFA `train.epochs: 30`은 CFA 논문 기준 잠정값이다(§12).
+- DFM `score_type="nll"` 경로는 upstream 자체 버그(§10.4)로 막혀 있고, 이 프로젝트의 pixel-metric 파이프라인과도 연결돼 있지 않다.
+- `postprocess/__init__.py` re-export 정리.
+- CFLOW `--resume`이 private decoder optimizer의 Adam 모멘텀을 보존하지 못한다 (§14.3, 적대적 검토 A2 Major).
+- CFLOW의 `runtime.amp`/`train.grad_clip`이 private optimizer 경로에는 적용되지 않는다.
+- **AUROC 지표 교체(§23.4) 이후 전 모델 수치 재측정 필요.** 점수·맵이 대략 17을 넘는 모델은 기존 기록이 부풀려져 있다. PaDiM(image 0.997→0.995)과 CS-Flow(pixel 0.500→0.646)는 확인됐고, PatchCore·CFLOW는 무영향으로 확인됐다. 나머지 11개 모델은 미확인이다. 3개 카테고리 정식 성능 측정 시 함께 갱신한다.
+- **다단계 학습 모델의 스모크 epoch 수 기준 필요(§23.2).** DSR은 `--epochs 1`이면 정상 코드에서도 phase 1이 실행되지 않아 V-05를 통과하면서 결함이 숨었다. `/add-anomalib-model` 절차의 V-05에 "phase 경계를 넘는 epoch 수로 스모크한다"는 조건을 추가하는 것이 좋겠다.
+- DSR `best image_auroc 0.667`(capsule, 10 epoch)은 논문 수치(~0.98)에 한참 못 미친다. phase 1이 7 epoch뿐이라 학습 예산이 절대 부족하다 — `--epochs 100` 이상으로 재확인 필요.
+- CS-Flow는 256×256 입력에서 z 해상도가 8×8 / 4×4 / 2×2로 매우 거칠다. 지표를 고친 뒤에도 pixel 국소화 정밀도는 태생적으로 제한된다(upstream도 `input_size`를 데이터 쪽에서 받으므로 256이 틀린 값은 아니다).
+- GANomaly는 MVTec에서 anomalib reference 자체가 평균 0.421로 0.5 미만이다(§23.1). 실사용 후보에서 제외하는 것이 타당하다.
 
 ---
 
-작성일: 2026-08-23
-문서 상태: FastFlow·PatchCore·PaDiM·Reverse Distillation·DFM·DFKDE·CFA·CFLOW 추가 산출물 (anomalib `091ca6a` 기준)
+작성일: 2026-08-23 (최종 갱신 2026-08-24)
+문서 상태: FastFlow·PatchCore·PaDiM·Reverse Distillation·DFM·DFKDE·CFA·CFLOW·FRE·U-Flow·CS-Flow·SuperSimpleNet·GANomaly·DRAEM·DSR 추가 산출물 (anomalib `091ca6a` 기준) + 사용자 실학습 결함 3건 수정 기록(§23)

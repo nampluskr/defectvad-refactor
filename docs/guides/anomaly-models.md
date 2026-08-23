@@ -18,8 +18,15 @@
 | Density Estimation | DFKDE | PCA + Gaussian KDE (image-level만) | 구현됨 | 지원 | 지원(image-level) | 지원 | `resnet18` | backbone 가중치 |
 | Feature Embedding / Memory Bank | CFA | 좌표 인지 클러스터 중심까지의 거리 (gradient로 학습) | 구현됨 | 지원 | 지원 | 지원 | `wide_resnet50_2` | backbone 가중치 |
 | Normalizing Flow | CFLOW | fiber(feature-vector 조각) 단위 conditional normalizing flow | 구현됨 | 지원 (adapter 소유 private optimizer, §4.2) | 지원 | 지원 | `wide_resnet50_2` | backbone 가중치 |
+| Autoencoder / Reconstruction | FRE | Tied AutoEncoder 기반 feature reconstruction error | 구현됨 | 지원 | 지원 | 지원 | `resnet50` | backbone 가중치 |
+| Normalizing Flow | U-Flow | U자형 다중 스케일 normalizing flow | 구현됨 | 지원 | 지원 | 지원 | `resnet18` | backbone 가중치 |
+| Normalizing Flow | CS-Flow | Cross-scale coupling normalizing flow | 구현됨 | 지원 | 지원 | 지원 | `efficientnet_b5` | backbone 가중치 |
+| Discriminative / Synthetic Anomaly | SuperSimpleNet | Feature adaptation 및 Perlin noise 합성 기반 segmentation-detection | 구현됨 | 지원 | 지원 | 지원 | `wide_resnet50_2` | backbone 가중치 |
+| Reconstruction / Adversarial | GANomaly | Generator-Discriminator 적대적 생성 및 잠재 공간 오차 (image-level) | 구현됨 | 지원 (Dual Adam optimizer) | 지원(image-level) | 지원 | 자체 합성곱 인코더/디코더 | 없음 (from scratch) |
+| Reconstruction / Discriminative | DRAEM | 재구성-판별 듀얼 서브네트워크 + DTD/Perlin 합성 인공 결함 지도학습 | 구현됨 | 지원 | 지원 | 지원 | 자체 서브네트워크 | DTD 텍스처 데이터셋 |
+| Reconstruction / Discrete Latent | DSR | VQ-VAE 이산 코드북 + 듀얼 서브스페이스 재투영 + 2단계 다중 옵티마이저 학습 | 구현됨 | 지원 (2단계 다중 옵티마이저) | 지원 | 지원 | VQ-VAE 이산 모델 | VQ-VAE pretrained 가중치 |
 
-열 모델은 `src/tasks/anomaly/models/` 아래의 pure-PyTorch 모델과 `src/tasks/anomaly/adapters/` 아래의 lifecycle adapter로 구성된다. 학습 열의 `지원`은 gradient 학습만을 뜻하지 않는다. PatchCore의 학습 단계는 파라미터 최적화 대신 정상 이미지의 embedding을 수집하고 memory bank를 구축한다. DFKDE는 이미지 단위 anomaly score만 산출하므로 평가·시각화에서 pixel 단위 지표를 제공하지 않는다.
+열일곱 모델은 `src/tasks/anomaly/models/` 아래의 pure-PyTorch 모델과 `src/tasks/anomaly/adapters/` 아래의 lifecycle adapter로 구성된다. 학습 열의 `지원`은 gradient 학습만을 뜻하지 않는다. PatchCore의 학습 단계는 파라미터 최적화 대신 정상 이미지의 embedding을 수집하고 memory bank를 구축한다. DFKDE와 GANomaly는 이미지 단위 anomaly score만 산출하므로 평가·시각화에서 pixel 단위 지표를 제공하지 않는다.
 
 ## 2. 모델 분류 체계
 
@@ -41,8 +48,10 @@ EfficientAD는 teacher–student 구조와 autoencoder 기반 reconstruction을 
 
 - FastFlow
 - CFLOW
+- U-Flow
+- CS-Flow
 
-FastFlow는 backbone feature map 전체를 2D spatial flow로 한 번에 변환한다. CFLOW는 feature map을 위치별 벡터("fiber")로 펼쳐 위치 정보로 조건화한 뒤 fiber 단위로 flow를 학습한다는 점이 다르다 — 이 학습 단위 차이 때문에 CFLOW는 이 프로젝트에서 유일하게 adapter가 자체 optimizer를 소유한다(§4.2).
+FastFlow는 backbone feature map 전체를 2D spatial flow로 한 번에 변환한다. CFLOW는 feature map을 위치별 벡터("fiber")로 펼쳐 위치 정보로 조건화한 뒤 fiber 단위로 flow를 학습한다. U-Flow는 U자형 아키텍처를 기반으로 서로 다른 스케일의 feature를 역전파 가능한 flow 블록과 결합하여 다중 스케일 밀도를 학습한다. CS-Flow는 3개 스케일 간 상호 연결된 cross-scale coupling convolution layer를 통해 다중 해상도 feature의 결합 분포를 학습한다.
 
 ### 2.3 Feature Embedding / Memory Bank
 
@@ -62,6 +71,22 @@ PaDiM은 개별 embedding을 memory bank에 그대로 저장하는 대신 patch 
 - DFKDE
 
 DFM은 `score_type` 설정에 따라 PCA 재구성 오차(`fre`, pixel-level 지원)와 가우시안 음의 로그가능도(`nll`, image-level 전용) 중 하나를 사용한다. DFKDE는 PCA로 축소한 feature에 non-parametric Gaussian KDE를 적합시키며, 항상 image-level score만 산출한다.
+
+### 2.5 Autoencoder / Reconstruction
+
+정상 feature 또는 이미지를 저차원 잠재 공간으로 압축한 뒤 재구성하고, 원본과의 재구성 오차(Reconstruction Error)를 anomaly signal로 사용한다.
+
+- FRE
+
+FRE는 고정된 CNN backbone feature를 Tied AutoEncoder(가중치 공유 선형 오토인코더)로 학습하여 feature 재구성 오차(MSE)를 픽셀 단위 이상 맵과 스코어로 계산한다.
+
+### 2.6 Discriminative / Synthetic Anomaly
+
+정상 feature 공간에 Perlin 노이즈와 가우시안 섭동을 합성(pseudo-anomaly)하여 생성하고, segmentation 헤드와 classification 헤드를 통해 정상과 합성 이상을 판별하도록 학습한다.
+
+- SuperSimpleNet
+
+SuperSimpleNet은 사전 학습된 backbone feature를 2배 업스케일링 및 풀링한 뒤, 1x1 projection adapter와 train-time anomaly generator를 통해 생성된 합성 이상 feature를 판별하여 빠른 속도와 높은 분별력을 동시에 확보한다.
 
 ## 3. 모델별 구현 개요
 
@@ -331,6 +356,169 @@ CFLOW는 고정된 pretrained backbone의 다중 계층 feature를 conditional n
 
 `adapter.params.lr`(기본 `0.0001`)이 이 모델의 실제 학습률을 결정한다 — `optim.optimizer` config 블록은 공통 engine이 구조적으로 요구하지만 CFLOW에는 비활성이다(§4.2).
 
+### 3.11 FRE
+
+FRE(Feature Reconstruction Error)는 고정된 CNN backbone에서 추출한 feature를 Tied AutoEncoder(선형 가중치 공유 오토인코더)로 재구성하도록 학습한다. 재구성 오차(MSE)를 기반으로 픽셀 단위 이상 맵과 스코어를 산출한다.
+
+- 모델 factory: `fre_anomaly` (별칭: `fre`)
+- Adapter: `fre`
+- Config: `configs/anomaly/models/fre.yaml`
+- 기본 backbone: `resnet50`
+- Selector: `--model.backbone resnet50|wide_resnet50_2|resnet18`
+- 학습 대상: `TiedAE` (가중치 및 bias 파라미터)
+- 로컬 자산: 선택한 backbone의 pretrained 가중치
+- 구현 특이사항: feature extraction 단계에서 `pooling_kernel_size`로 avg pooling을 거쳐 고정 차원 feature vector를 형성하고 `MSELoss`로 Tied AutoEncoder를 최적화한다.
+
+#### 모델 파라미터
+
+| 파라미터 | 타입 | 기본값 | 지원값 | 설명 |
+|---|---|---|---|---|
+| `backbone` | `str` | `resnet50` | Config selector: `resnet50`, `wide_resnet50_2`, `resnet18` | feature 추출에 사용할 고정 backbone |
+| `weights_path` | `str \| None` | `${paths.backbone_root}/resnet50-0676ba61.pth` | 선택한 backbone과 일치하는 로컬 파일 경로 | backbone에 적용할 pretrained 가중치 경로 |
+| `layer` | `str` | `layer3` | backbone이 제공하는 layer 이름 | feature를 추출할 backbone 레이어 |
+| `pooling_kernel_size` | `int` | `2` | 양의 정수 (ResNet50: 2, Wide ResNet50: 4) | 추출된 feature map에 적용할 average pooling 커널 크기 |
+| `input_dim` | `int` | `65536` | 양의 정수 (pooling 후 채널x높이x너비) | Tied AutoEncoder의 입력 차원 |
+| `latent_dim` | `int` | `220` | 양의 정수 | Tied AutoEncoder의 압축 잠재 공간 차원 |
+
+### 3.12 U-Flow
+
+U-Flow는 U자형 normalizing flow 아키텍처를 사용하여 CNN backbone(ResNet 또는 CaiT)에서 추출한 다중 스케일 feature의 결합 확률 밀도를 학습한다. 학습 시 log-likelihood와 log-Jacobian determinant 손실을 결합하고, 추론 시 다중 스케일 likelihood를 평균하여 이상 맵과 스코어를 산출한다.
+
+- 모델 factory: `uflow_anomaly` (별칭: `uflow`)
+- Adapter: `uflow`
+- Config: `configs/anomaly/models/uflow.yaml`
+- 기본 backbone: `resnet18`
+- Selector: `--model.backbone resnet18|wide_resnet50_2`
+- 학습 대상: `LayerNorm` 파라미터 및 `GraphINN` flow 블록
+- 로컬 자산: 선택한 backbone의 pretrained 가중치
+- 구현 특이사항: `LayerNormFeatureExtractor`를 통해 계층별 feature를 정규화한 뒤 U-Net 형태의 multi-scale flow graph(`IRevNetUpsampling`, `Split`, `Concat`, `AllInOneBlock`)로 처리한다.
+
+#### 모델 파라미터
+
+| 파라미터 | 타입 | 기본값 | 지원값 | 설명 |
+|---|---|---|---|---|
+| `backbone` | `str` | `resnet18` | Config selector: `resnet18`, `wide_resnet50_2`, `mcait` | feature 추출에 사용할 고정 backbone |
+| `weights_path` | `str \| None` | `${paths.backbone_root}/resnet18-f37072fd.pth` | 선택한 backbone과 일치하는 로컬 파일 경로 | backbone에 적용할 pretrained 가중치 경로 |
+| `input_size` | `list[int]` | `[256, 256]` | `[H, W]` 형태의 이미지 해상도 | 입력 이미지 크기 |
+| `flow_steps` | `int` | `4` | 양의 정수 | 각 스케일별 coupling block 단계 수 |
+| `affine_clamp` | `float` | `2.0` | 양수 | affine coupling layer의 clamping 값 |
+| `affine_subnet_channels_ratio` | `float` | `1.0` | 양수 | affine coupling subnet의 중간 채널 비율 |
+| `permute_soft` | `bool` | `false` | `true`/`false` | soft permutation 사용 여부 |
+
+### 3.13 CS-Flow
+
+CS-Flow(Cross-Scale Flow)는 EfficientNet-B5에서 추출한 3개 스케일의 feature map을 상호 연결된 cross-scale coupling convolution layer로 변환하여 다중 스케일 결합 확률 밀도를 학습한다. 학습 시 각 스케일의 잠재 변수와 log-Jacobian determinant를 결합한 손실을 사용하고, 추론 시 다중 스케일 anomaly map을 합성하여 이상 점수와 히트맵을 생성한다.
+
+- 모델 factory: `csflow_anomaly` (별칭: `csflow`)
+- Adapter: `csflow`
+- Config: `configs/anomaly/models/csflow.yaml`
+- 기본 backbone: `efficientnet_b5` (`features.6.8` 레이어 사용)
+- 학습 대상: `CrossScaleFlow` (`ParallelGlowCouplingLayer`, `CrossConvolutions`, `ParallelPermute`) 파라미터
+- 로컬 자산: `${paths.backbone_root}/efficientnet_b5_lukemelas-1a07897c.pth`
+- 구현 특이사항: FX-traced `TimmFeatureExtractor`를 사용해 EfficientNet-B5에서 3개 해상도(원 해상도, 1/2, 1/4)로 다운샘플링된 feature를 추출하며, backbone은 freeze된다.
+
+#### 모델 파라미터
+
+| 파라미터 | 타입 | 기본값 | 지원값 | 설명 |
+|---|---|---|---|---|
+| `weights_path` | `str \| None` | `${paths.backbone_root}/efficientnet_b5_lukemelas-1a07897c.pth` | 로컬 파일 경로 | EfficientNet-B5 pretrained 가중치 경로 |
+| `input_size` | `list[int]` | `[256, 256]` | `[H, W]` 형태의 이미지 해상도 | 입력 이미지 크기 |
+| `cross_conv_hidden_channels` | `int` | `1024` | 양의 정수 (예: 64, 512, 1024) | cross-scale convolution의 은닉 채널 수 |
+| `n_coupling_blocks` | `int` | `4` | 양의 정수 | cross-scale coupling block 단계 수 |
+| `clamp` | `float` | `3.0` | 양수 | coupling layer의 clamping 값 |
+| `num_channels` | `int` | `3` | `3` | 입력 이미지 채널 수 |
+
+### 3.14 SuperSimpleNet
+
+SuperSimpleNet은 사전 학습된 CNN feature를 2배 업스케일 및 AvgPool2d로 인접 패치를 집약한 뒤, 1x1 projection adapter와 train-time feature-level 합성 이상 생성기(AnomalyGenerator)를 결합하여 정상 feature와 이상 feature를 판별(Discriminative)하도록 학습하는 모델이다. Segmentation 헤드(1x1 Conv + LeakyReLU)와 Classification 헤드(Conv + pooling + FC)를 통해 anomaly map과 anomaly score를 예측하며 빠른 추론 속도를 제공한다.
+
+- 모델 factory: `supersimplenet_anomaly` (별칭: `supersimplenet`)
+- Adapter: `supersimplenet`
+- Config: `configs/anomaly/models/supersimplenet.yaml`
+- 기본 backbone: `wide_resnet50_2` (`layer2`, `layer3` 레이어 사용)
+- Selector: `--model.backbone wide_resnet50_2|resnet18|resnet50`
+- 학습 대상: `FeatureAdapter` (`projection`), `SegmentationDetectionModule` (`seg_head`, `cls_conv`, `cls_fc`) 파라미터
+- 로컬 자산: `${paths.backbone_root}/wide_resnet50_2-95faca4d.pth` (또는 선택한 backbone 가중치)
+- 구현 특이사항: 학습 중 `AnomalyGenerator`가 Perlin noise 패턴과 Gaussian 노이즈를 결합해 feature 공간에서 합성 이상 맵과 라벨을 생성하고, `SSNLoss` (Focal Loss + Truncated L1 Loss)로 학습한다. Backbone은 freeze된다.
+
+#### 모델 파라미터
+
+| 파라미터 | 타입 | 기본값 | 지원값 | 설명 |
+|---|---|---|---|---|
+| `weights_path` | `str \| None` | `${paths.backbone_root}/wide_resnet50_2-95faca4d.pth` | 로컬 파일 경로 | Backbone pretrained 가중치 경로 |
+| `backbone` | `str` | `"wide_resnet50_2"` | `wide_resnet50_2`, `resnet18`, `resnet50` | Feature extractor 백본 이름 |
+| `layers` | `list[str]` | `["layer2", "layer3"]` | 백본 레이어 리스트 | 추출에 사용할 중간 레이어 이름들 |
+| `perlin_threshold` | `float` | `0.2` | `0.0` ~ `1.0` | Anomaly generation용 Perlin 노이즈 binarization threshold |
+| `stop_grad` | `bool` | `true` | `true`/`false` | classification 헤드에서 segmentation 헤드로의 gradient 차단 여부 |
+| `adapt_cls_features` | `bool` | `false` | `true`/`false` | classification 헤드 입력으로 adapted feature를 사용할지 여부 |
+
+### 3.15 GANomaly
+
+GANomaly는 적대적 오토인코더 구조(Generator: Encoder1-Decoder-Encoder2)와 Discriminator(Encoder-Classifier)를 결합하여 정상 이미지를 잠재 공간으로 압축·재구성하고, 첫 번째 잠재 벡터 $z$와 재구성 이미지의 잠재 벡터 $\hat{z}$ 사이의 거리를 이미지 단위 이상 점수로 산출하는 모델이다 (Pixel anomaly map 미생성).
+
+- 모델 factory: `ganomaly_anomaly` (별칭: `ganomaly`)
+- Adapter: `ganomaly`
+- Config: `configs/anomaly/models/ganomaly.yaml`
+- 기본 크기: 자체 합성곱 인코더/디코더
+- 학습 대상: Generator 및 Discriminator 파라미터 전체 (From scratch 학습)
+- 로컬 자산: 없음
+- 구현 특이사항: `GanomalyAdapter`가 Generator 손실(Adversarial + Contextual + Latent Error)과 Discriminator 손실(BCE)을 전용 Dual Adam 옵티마이저로 번갈아 최적화한다.
+- **성능 기대치 주의**: MVTec에서 image AUROC가 0.5 미만으로 나오는 것이 **정상이며 포팅 결함이 아니다.** anomalib 공식 벤치마크(`ganomaly/README.md`) 기준 MVTec 평균 image AUROC는 **0.421**이고 15개 카테고리 중 12개가 0.5 미만이다(bottle 0.251, capsule 0.682). 이미지 전체를 100차원 latent로 압축해 그 재구성 오차만으로 점수를 내는 구조라, 국소 결함이 대부분인 MVTec에는 원리적으로 맞지 않는다(원래 MNIST/CIFAR의 클래스 단위 이상 탐지용). 실사용 후보로는 권장하지 않는다 — 상세는 `docs/dev/v0.2/reports/UPSTREAM-INVENTORY.md` §23.1.
+
+#### 모델 파라미터
+
+| 파라미터 | 타입 | 기본값 | 지원값 | 설명 |
+|---|---|---|---|---|
+| `input_size` | `list[int]` | `[256, 256]` | `[H, W]` 형태의 이미지 해상도 | 입력 이미지 크기 |
+| `n_features` | `int` | `64` | 양의 정수 | 초기 합성곱 필터 채널 수 |
+| `latent_vec_size` | `int` | `100` | 양의 정수 | 잠재 공간(Bottleneck) 벡터 차원 |
+| `extra_layers` | `int` | `0` | `0` 이상의 정수 | 인코더/디코더에 추가할 중간 합성곱 계층 수 |
+| `add_final_conv_layer` | `bool` | `true` | `true`/`false` | 최종 출력 합성곱 계층 추가 여부 |
+
+### 3.16 DRAEM
+
+DRAEM(Discriminatively Trained Reconstruction Embedding)은 Reconstructive SubNetwork(AutoEncoder)와 Discriminative SubNetwork(U-Net 스타일 판별기)를 결합하여, DTD 텍스처 데이터셋과 Perlin 노이즈로 생성된 인공 결함(Simulated anomaly)을 정상 이미지로 복원하고 동시에 결함 영역을 픽셀 단위로 분할하도록 지도학습하는 모델이다.
+
+- 모델 factory: `draem_anomaly` (별칭: `draem`)
+- Adapter: `draem`
+- Config: `configs/anomaly/models/draem.yaml`
+- 기본 크기: 자체 Reconstructive/Discriminative 서브네트워크
+- 학습 대상: Reconstructive SubNetwork 및 Discriminative SubNetwork 파라미터 전체
+- 로컬 자산: `${paths.dataset_root}/dtd` (DTD 텍스처 데이터셋)
+- 구현 특이사항: `DraemAdapter`가 학습 중 `PerlinAnomalyGenerator`로 결함 이미지를 생성하고, `DraemLoss` (L2 Reconstruction + SSIM + Focal Segmentation Loss)로 최적화한다. SSPCAB 모듈을 활성화할 경우 bottleneck attention 손실을 추가할 수 있다.
+
+#### 모델 파라미터
+
+| 파라미터 | 타입 | 기본값 | 지원값 | 설명 |
+|---|---|---|---|---|
+| `sspcab` | `bool` | `false` | `true`/`false` | SSPCAB (Self-Supervised Predictive Convolutional Attention Block) 활성화 여부 |
+
+### 3.17 DSR
+
+DSR(Dual Subspace Re-Projection Network)은 사전학습된 VQ-VAE 이산 잠재 모델(Discrete Latent Model)의 양자화 코드북을 기반으로, Subspace Restriction Module을 통해 결함 영역을 정상 부분공간으로 재투영하고 Anomaly Detection Module과 Upsampling Module을 거쳐 픽셀 단위 이상 맵을 생성하는 모델이다.
+
+- 모델 factory: `dsr_anomaly` (별칭: `dsr`)
+- Adapter: `dsr`
+- Config: `configs/anomaly/models/dsr.yaml`
+- 기본 크기: Discrete Latent Model + Subspace Restriction + Upsampling Module
+- 학습 대상: Image Reconstruction, Subspace Restriction Hi/Lo, Anomaly Detection Module (Phase 1) 및 Upsampling Module (Phase 2)
+- 로컬 자산: `${paths.backbone_root}/vq_model_pretrained_128_4096.pckl` (사전학습 VQ-VAE 코드북)
+- 구현 특이사항: `DsrAdapter`가 2단계 학습(Phase 1: 양자화 결함 재투영 및 탐지 모듈 학습, Phase 2: Perlin smudge 기반 업샘플링 모듈 학습)을 자동으로 전환하며, 이산 VQ-VAE 백본은 항상 freeze 상태를 유지한다. Phase 경계는 `int(train.epochs × upsampling_train_ratio)`로 정해지고, 전체 epoch 수는 engine이 `adapter.total_epochs`로 공급한다.
+- **정규화 금지**: upstream `Dsr.on_train_start`가 `Normalize`를 발견하면 `ValueError`로 즉시 실패한다(사전학습 VQ-VAE 코드북이 [0,1] 이미지로 학습됨). `dsr.yaml`이 `data.transform.{train,eval}.params.normalize: false`로 이를 강제한다 — 제거하면 안 된다.
+- **최소 epoch 수 주의**: `--epochs 1`로 실행하면 `int(1 × 0.7) = 0`이 되어 Phase 1이 아예 실행되지 않는다(upstream도 동일한 축퇴 동작). 스모크 검증도 반드시 Phase 경계를 넘는 epoch 수로 해야 한다. 논문 수준 성능(image AUROC ~0.98)에는 100 epoch 이상이 필요하며, 10 epoch에서는 0.667 수준이다 — 상세는 `docs/dev/v0.2/reports/UPSTREAM-INVENTORY.md` §23.2.
+
+#### 모델 파라미터
+
+| 파라미터 | 타입 | 기본값 | 지원값 | 설명 |
+|---|---|---|---|---|
+| `weights_path` | `str \| None` | `${paths.backbone_root}/vq_model_pretrained_128_4096.pckl` | 로컬 파일 경로 | 사전학습된 VQ-VAE 이산 코드북 가중치 경로 |
+| `latent_anomaly_strength` | `float` | `0.2` | `0.0` ~ `1.0` | 잠재 공간 인공 결함 강도 |
+| `embedding_dim` | `int` | `128` | 양의 정수 | 코드북 임베딩 차원 |
+| `num_embeddings` | `int` | `4096` | 양의 정수 | 코드북 임베딩 벡터 수 |
+| `num_hiddens` | `int` | `128` | 양의 정수 | 은닉 채널 수 |
+| `num_residual_layers` | `int` | `2` | 양의 정수 | Residual 블록 수 |
+| `num_residual_hiddens` | `int` | `64` | 양의 정수 | Residual 은닉 채널 수 |
+
 ## 4. 공통 통합 구조
 
 ### 4.1 모델 코드와 SSOT
@@ -355,12 +543,27 @@ Adapter가 담당하는 모델별 동작은 다음과 같다.
 | DFKDE | feature 수집, validation 전 PCA+KDE 적합, image-level 전용 eval/predict/threshold 재정의 |
 | CFA | 학습 시작 전 memory bank 중심 초기화, hypersphere 손실 계산 |
 | CFLOW | fiber 단위 decoder loss 계산 및 **adapter 소유 private optimizer**로 fiber마다 즉시 step (§3.10) |
+| FRE | CNN feature와 Tied AutoEncoder 재구성 간 MSE 손실 계산 |
+| U-Flow | 다중 스케일 잠재 변수 및 log-Jacobian 결합 손실 계산 |
+| CS-Flow | 다중 스케일 cross-scale flow 잠재 변수 및 log-Jacobian 손실 계산 |
+| SuperSimpleNet | Feature-level 합성 이상 생성 및 Focal + Truncated L1 결합 손실(`SSNLoss`) 계산 |
+| GANomaly | Generator/Discriminator 이원 적대적 손실 계산 및 전용 Dual Adam 옵티마이저 스텝 |
+| DRAEM | DTD/Perlin 합성 인공 결함 생성 및 Reconstructive-Discriminative 복합 손실 계산 |
+| DSR | 2단계 학습 모듈 전환(Reconstruction / Upsampling) 및 다중 옵티마이저 스텝 |
 
-CFLOW는 이 표의 다른 모델과 달리 공통 engine의 optimizer(model.parameters() 중 requires_grad=True 대상, `build_optimizer`가 구성)에 의존하지 않는다. Upstream이 이미지 배치 하나당 최대 수백 회의 개별 Adam step을 수행하는 구조라, `CflowAdapter`가 decoder 파라미터 전용 `torch.optim.Adam`을 직접 소유하고 `train_step` 안에서 그 step들을 수행한다. 공통 engine에 반환하는 loss는 이 실제 학습에 관여하지 않는 0-gradient 더미 값이다 — 자세한 근거는 §3.10과 `docs/dev/v0.2/reviews/A2.md` 참조.
+CFLOW, GANomaly, DSR은 이 표의 다른 모델과 달리 공통 engine의 단일 optimizer에 의존하지 않고, 각각의 adapter가 전용 private optimizer들을 직접 소유·스케줄링하여 다단계/다중 최적화를 완벽히 수행한다.
 
 ### 4.3 Offline 실행
 
 모델 생성 과정에서 pretrained 가중치를 자동으로 내려받지 않는다. 가중치와 보조 데이터는 `configs/local.yaml` 또는 환경변수로 지정한 root 아래에 사용자가 준비해야 한다. 필요한 파일이나 폴더가 없으면 실행을 계속하지 않고 오류로 종료한다.
+
+### 4.4 AUROC 지표
+
+`image_auroc`·`pixel_auroc`는 `src/tasks/anomaly/metrics/rank_auroc.py`의 `RankAUROC`를 쓴다. torchmetrics의 `BinaryAUROC`는 `preds`가 [0,1]을 벗어나면 자동으로 sigmoid를 적용하는데, float32 sigmoid는 대략 `x > 17`부터 정확히 `1.0`으로 포화한다. 포화하면 모든 값이 동점이 되어 AUROC가 정확히 0.5로 붕괴하고, 부분 포화는 오답을 동점으로 바꿔 AUROC를 부풀린다.
+
+anomaly map과 anomaly score는 모델마다 스케일이 크게 다르므로(CS-Flow의 맵은 3개 스케일 `mean(z²)`의 곱이라 수백~수만 규모) 이 제약은 실제로 문제가 된다. `RankAUROC`는 입력을 변환 없이 받아 Mann-Whitney U 통계량을 동점 보정과 함께 계산한다. 포화가 없던 구간에서는 `BinaryAUROC`와 값이 동일하다.
+
+**모델을 추가할 때**: anomaly map이나 score의 값 범위를 확인할 필요는 없다. 다만 어떤 지표가 여러 epoch에 걸쳐 정확히 `0.500`으로 고정된다면 값 포화나 상수 출력을 먼저 의심한다.
 
 ## 5. 설치 및 로컬 자산 요구사항
 
@@ -379,6 +582,14 @@ CFLOW는 이 표의 다른 모델과 달리 공통 engine의 optimizer(model.par
 | DFM | `${paths.backbone_root}/resnet50-0676ba61.pth` |
 | DFKDE | `${paths.backbone_root}/resnet18-f37072fd.pth` |
 | CFA | `${paths.backbone_root}/wide_resnet50_2-95faca4d.pth` |
+| CFLOW | `${paths.backbone_root}/wide_resnet50_2-95faca4d.pth` |
+| FRE | `${paths.backbone_root}/resnet50-0676ba61.pth` |
+| U-Flow | `${paths.backbone_root}/resnet18-f37072fd.pth` |
+| CS-Flow | `${paths.backbone_root}/efficientnet_b5_lukemelas-1a07897c.pth` |
+| SuperSimpleNet | `${paths.backbone_root}/wide_resnet50_2-95faca4d.pth` |
+| GANomaly | 없음 (from scratch) |
+| DRAEM | `${paths.dataset_root}/dtd` |
+| DSR | `${paths.backbone_root}/vq_model_pretrained_128_4096.pckl` |
 
 Selector로 backbone이나 모델 크기를 변경하면 해당 selector가 지정하는 가중치 경로도 함께 적용된다. 경로는 config placeholder를 유지하고 제품 코드에 하드코딩하지 않는다.
 
@@ -398,6 +609,14 @@ Selector로 backbone이나 모델 크기를 변경하면 해당 selector가 지�
 | DFM | `timm` |
 | DFKDE | `timm` |
 | CFA | `torchvision`(feature extraction), `einops`, `scikit-learn`(`gamma_c > 1`일 때 k-means) |
+| CFLOW | `timm`, `FrEIA` |
+| FRE | `timm` |
+| U-Flow | `timm`, `FrEIA`, `scipy`, `omegaconf` |
+| CS-Flow | `torchvision`, `FrEIA`, `numpy` |
+| SuperSimpleNet | `timm`, `torchvision`(sigmoid_focal_loss) |
+| GANomaly | `torch`, `torchvision` |
+| DRAEM | `kornia`, `torchvision` |
+| DSR | `kornia`, `torchvision` |
 
 현재 `requirements.txt`에는 일부 모델 패키지가 명시되어 있지 않다. 실행 전 `pytorch_env`에 대상 모델의 패키지가 준비되어 있는지 확인해야 하며, 프로젝트 규칙에 따라 실행 중 자동 설치는 수행하지 않는다.
 
@@ -415,6 +634,14 @@ Selector로 backbone이나 모델 크기를 변경하면 해당 selector가 지�
 --model configs/anomaly/models/dfm.yaml
 --model configs/anomaly/models/dfkde.yaml
 --model configs/anomaly/models/cfa.yaml
+--model configs/anomaly/models/cflow.yaml
+--model configs/anomaly/models/fre.yaml
+--model configs/anomaly/models/uflow.yaml
+--model configs/anomaly/models/csflow.yaml
+--model configs/anomaly/models/supersimplenet.yaml
+--model configs/anomaly/models/ganomaly.yaml
+--model configs/anomaly/models/draem.yaml
+--model configs/anomaly/models/dsr.yaml
 ```
 
 전체 명령어와 selector, override 사용법은 [CLI 사용 가이드](./cli-usage.md)를 참고한다.

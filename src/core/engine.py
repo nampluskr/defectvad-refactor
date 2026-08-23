@@ -36,6 +36,12 @@ class Engine:
         monitor_metric = ctx.config["train"]["monitor"]["metric"]
         monitor_mode = ctx.config["train"]["monitor"]["mode"]
 
+        # Adapters that schedule multi-phase training (e.g. DSR's reconstruction ->
+        # upsampling switch) need the total budget to place the phase boundary. This
+        # is a generic attribute, not a per-model branch: adapters that ignore it are
+        # unaffected.
+        adapter.total_epochs = ctx.epochs
+
         adapter.on_fit_start(model, loaders, ctx.device)
         best_checkpoint_path = (
             os.path.join(self.checkpoint_dir, "best.pth") if self.checkpoint_dir else None

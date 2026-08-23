@@ -1,8 +1,7 @@
-from torchmetrics.classification import BinaryAUROC
-
 from src.core.registry import METRICS
+from .rank_auroc import RankAUROC
 
 
 @METRICS.register("pixel_auroc")
 def build_pixel_auroc(**params):
-    return BinaryAUROC(**params)
+    return RankAUROC(**params)
