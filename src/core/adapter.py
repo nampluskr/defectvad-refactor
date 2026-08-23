@@ -72,6 +72,11 @@ class TaskAdapter(ABC):
     def extra_final_metrics(self) -> dict:
         return {}
 
+    def configure_optimizers(self, model, config_optim):
+        """Optional hook for adapters needing custom multi-group or private optimizers."""
+        return None
+
     def dummy_forward_input(self, image_size, device):
         import torch
         return torch.zeros(1, 3, image_size[0], image_size[1], device=device)
+

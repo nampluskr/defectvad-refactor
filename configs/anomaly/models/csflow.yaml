@@ -1,0 +1,27 @@
+model:
+  name: csflow_anomaly
+  params:
+    weights_path: ${paths.backbone_root}/efficientnet_b5_lukemelas-1a07897c.pth
+    input_size: [256, 256]
+    cross_conv_hidden_channels: 1024
+    n_coupling_blocks: 4
+    clamp: 3
+    num_channels: 3
+
+adapter:
+  name: csflow
+  params:
+    smooth_sigma: 4.0
+
+optim:
+  optimizer:
+    name: adam
+    params:
+      lr: 0.0002
+      eps: 0.0001
+      weight_decay: 0.00001
+      betas: [0.5, 0.9]
+
+train:
+  # anomalib trainer_arguments: gradient_clip_val=1, num_sanity_val_steps=0
+  grad_clip: 1.0

@@ -1,0 +1,27 @@
+model:
+  name: draem_anomaly
+  params:
+    sspcab: false
+
+adapter:
+  name: draem
+  params:
+    dtd_dir: ${paths.dataset_root}/dtd
+    enable_sspcab: false
+    sspcab_lambda: 0.1
+    beta: [0.1, 1.0]
+    smooth_sigma: 4.0
+
+optim:
+  optimizer:
+    name: adam
+    params:
+      lr: 0.0001
+  scheduler:
+    name: multistep
+    params:
+      milestones: [400, 600]
+      gamma: 0.1
+
+train:
+  grad_clip: null

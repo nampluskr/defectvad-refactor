@@ -1,0 +1,37 @@
+model:
+  name: uflow_anomaly
+  params:
+    backbone: resnet18
+    weights_path: ${paths.backbone_root}/resnet18-f37072fd.pth
+    input_size: [256, 256]
+    flow_steps: 4
+    affine_clamp: 2.0
+    affine_subnet_channels_ratio: 1.0
+    permute_soft: false
+
+adapter:
+  name: uflow
+  params:
+    smooth_sigma: 4.0
+
+optim:
+  optimizer:
+    name: adam
+    params:
+      lr: 0.001
+      weight_decay: 0.00001
+
+train:
+  # anomalib trainer_arguments: num_sanity_val_steps=0
+  grad_clip: null
+
+selectors:
+  backbone:
+    resnet18:
+      model.params.backbone: resnet18
+      model.params.weights_path: "${paths.backbone_root}/resnet18-f37072fd.pth"
+      model.params.input_size: [256, 256]
+    wide_resnet50_2:
+      model.params.backbone: wide_resnet50_2
+      model.params.weights_path: "${paths.backbone_root}/wide_resnet50_2-95faca4d.pth"
+      model.params.input_size: [256, 256]

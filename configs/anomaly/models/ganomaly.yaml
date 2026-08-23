@@ -1,0 +1,34 @@
+model:
+  name: ganomaly_anomaly
+  params:
+    input_size: [256, 256]
+    num_input_channels: 3
+    n_features: 64
+    latent_vec_size: 100
+    extra_layers: 0
+    add_final_conv_layer: true
+
+adapter:
+  name: ganomaly
+  params:
+    wadv: 1
+    wcon: 50
+    wenc: 1
+    lr: 0.0002
+    beta1: 0.5
+    beta2: 0.999
+    smooth_sigma: 4.0
+
+metrics:
+  - name: image_auroc
+    params: {}
+
+optim:
+  optimizer:
+    name: adam
+    params:
+      lr: 0.0002
+      betas: [0.5, 0.999]
+
+train:
+  grad_clip: null

@@ -4,6 +4,8 @@ import torchvision.transforms.v2.functional as F
 
 def smooth_anomaly_map(anomaly_map, sigma):
     """Gaussian smoothing applied to anomaly map."""
+    if anomaly_map is None:
+        return None
     if sigma is None or sigma <= 0:
         return anomaly_map
     kernel_size = max(3, int(2 * round(3 * sigma) + 1))
@@ -55,15 +57,26 @@ def compute_thresholds(model, valid_loader, device, smooth_sigma):
         for images, targets in valid_loader:
             images = images.to(device)
             outputs = to_output_dict(model(images))
-            maps = smooth_anomaly_map(outputs["anomaly_map"], smooth_sigma)
+            anomaly_map = outputs.get("anomaly_map")
+            maps = smooth_anomaly_map(anomaly_map, smooth_sigma) if anomaly_map is not None else None
             labels = torch.stack([t["label"] for t in targets]).to(device)
             masks = torch.stack([t["mask"] for t in targets]).to(device)
 
-            image_scores.append(outputs["pred_score"].detach().cpu())
-            image_labels.append(labels.detach().cpu())
-            pixel_scores.append(maps.flatten().detach().cpu())
-            pixel_labels.append(masks.flatten().detach().cpu())
+            if outputs.get("pred_score") is not None:
+                image_scores.append(outputs["pred_score"].detach().cpu())
+                image_labels.append(labels.detach().cpu())
+            if maps is not None:
+                pixel_scores.append(maps.flatten().detach().cpu())
+                pixel_labels.append(masks.flatten().detach().cpu())
 
-    image_threshold = best_f1_threshold(torch.cat(image_scores), torch.cat(image_labels))
-    pixel_threshold = best_f1_threshold(torch.cat(pixel_scores), torch.cat(pixel_labels))
+    image_threshold = (
+        best_f1_threshold(torch.cat(image_scores), torch.cat(image_labels))
+        if image_scores
+        else 0.0
+    )
+    pixel_threshold = (
+        best_f1_threshold(torch.cat(pixel_scores), torch.cat(pixel_labels))
+        if pixel_scores
+        else None
+    )
     return image_threshold, pixel_threshold

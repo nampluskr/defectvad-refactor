@@ -1,0 +1,48 @@
+model:
+  name: fre_anomaly
+  params:
+    backbone: resnet50
+    weights_path: ${paths.backbone_root}/resnet50-0676ba61.pth
+    layer: layer3
+    pooling_kernel_size: 2
+    input_dim: 65536
+    latent_dim: 220
+
+adapter:
+  name: fre
+  params:
+    smooth_sigma: 4.0
+
+optim:
+  optimizer:
+    name: adam
+    params:
+      lr: 0.001
+
+train:
+  # anomalib trainer_arguments: gradient_clip_val=0 (i.e. no clipping).
+  grad_clip: null
+
+selectors:
+  backbone:
+    resnet50:
+      model.params.backbone: resnet50
+      model.params.weights_path: "${paths.backbone_root}/resnet50-0676ba61.pth"
+      model.params.layer: layer3
+      model.params.pooling_kernel_size: 2
+      model.params.input_dim: 65536
+      model.params.latent_dim: 220
+    wide_resnet50_2:
+      model.params.backbone: wide_resnet50_2
+      model.params.weights_path: "${paths.backbone_root}/wide_resnet50_2-95faca4d.pth"
+      model.params.layer: layer3
+      model.params.pooling_kernel_size: 4
+      model.params.input_dim: 16384
+      model.params.latent_dim: 220
+    resnet18:
+      model.params.backbone: resnet18
+      model.params.weights_path: "${paths.backbone_root}/resnet18-f37072fd.pth"
+      model.params.layer: layer3
+      model.params.pooling_kernel_size: 2
+      model.params.input_dim: 16384
+      model.params.latent_dim: 220

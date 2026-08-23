@@ -1,0 +1,48 @@
+model:
+  name: dsr_anomaly
+  params:
+    latent_anomaly_strength: 0.2
+    embedding_dim: 128
+    num_embeddings: 4096
+    num_hiddens: 128
+    num_residual_layers: 2
+    num_residual_hiddens: 64
+    weights_path: ${paths.backbone_root}/vq_model_pretrained_128_4096.pckl
+
+adapter:
+  name: dsr
+  params:
+    upsampling_train_ratio: 0.7
+    lr: 0.0002
+    gradient_clip_val: 1.0
+    weights_path: ${paths.backbone_root}/vq_model_pretrained_128_4096.pckl
+    smooth_sigma: 4.0
+
+data:
+  # anomalib's Dsr.on_train_start raises
+  # "Transforms for DSR should not contain Normalize." -- the pretrained VQ-VAE
+  # codebook (vq_model_pretrained_128_4096.pckl) was trained on [0, 1] images,
+  # so ImageNet normalization must stay off for both splits.
+  transform:
+    train:
+      name: anomaly_default
+      params:
+        normalize: false
+    eval:
+      name: anomaly_default
+      params:
+        normalize: false
+
+optim:
+  optimizer:
+    name: adam
+    params:
+      lr: 0.0002
+  scheduler:
+    name: multistep
+    params:
+      milestones: [400, 600]
+      gamma: 0.1
+
+train:
+  grad_clip: 1.0

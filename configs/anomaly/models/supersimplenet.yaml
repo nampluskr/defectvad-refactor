@@ -1,0 +1,39 @@
+model:
+  name: supersimplenet_anomaly
+  params:
+    weights_path: ${paths.backbone_root}/wide_resnet50_2-95faca4d.pth
+    backbone: wide_resnet50_2
+    layers:
+      - layer2
+      - layer3
+    perlin_threshold: 0.2
+    stop_grad: true
+    adapt_cls_features: false
+
+adapter:
+  name: supersimplenet
+  params:
+    truncation_term: 0.5
+    smooth_sigma: 4.0
+
+optim:
+  optimizer:
+    name: adamw
+    params:
+      lr: 0.0002
+      weight_decay: 0.00001
+
+selectors:
+  backbone:
+    wide_resnet50_2:
+      model.params.backbone: wide_resnet50_2
+      model.params.weights_path: ${paths.backbone_root}/wide_resnet50_2-95faca4d.pth
+      model.params.layers: [layer2, layer3]
+    resnet18:
+      model.params.backbone: resnet18
+      model.params.weights_path: ${paths.backbone_root}/resnet18-f37072fd.pth
+      model.params.layers: [layer2, layer3]
+    resnet50:
+      model.params.backbone: resnet50
+      model.params.weights_path: ${paths.backbone_root}/resnet50-0676ba61.pth
+      model.params.layers: [layer2, layer3]

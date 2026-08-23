@@ -162,7 +162,7 @@ def main():
     )
 
     model = build_model(config["model"])
-    optimizer = build_optimizer(config["optim"], model)
+    optimizer = build_optimizer(config["optim"], model, adapter=adapter)
     scheduler = build_scheduler(config["optim"], optimizer)
 
     start_epoch = 1

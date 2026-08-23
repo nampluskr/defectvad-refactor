@@ -22,10 +22,20 @@ def build_step_scheduler(target, step_size, gamma=0.1, **params):
     return torch.optim.lr_scheduler.StepLR(target, step_size=step_size, gamma=gamma)
 
 
-def build_optimizer(config_optim, model):
+@BUILDERS.register("multistep")
+def build_multistep_scheduler(target, milestones, gamma=0.1, **params):
+    return torch.optim.lr_scheduler.MultiStepLR(target, milestones=milestones, gamma=gamma)
+
+
+def build_optimizer(config_optim, model, adapter=None):
+    if adapter is not None and hasattr(adapter, "configure_optimizers"):
+        custom_opt = adapter.configure_optimizers(model, config_optim)
+        if custom_opt is not None:
+            return custom_opt
     spec = config_optim["optimizer"]
     trainable = (p for p in model.parameters() if p.requires_grad)
     return BUILDERS.build(spec["name"], trainable, **spec.get("params", {}))
+
 
 
 def build_scheduler(config_optim, optimizer):

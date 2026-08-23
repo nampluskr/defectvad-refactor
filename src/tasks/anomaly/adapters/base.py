@@ -35,6 +35,8 @@ class AnomalyAdapter(TaskAdapter):
         return batch[0].shape[0]
 
     def _smooth(self, anomaly_map):
+        if anomaly_map is None:
+            return None
         return smooth_anomaly_map(anomaly_map, self.smooth_sigma)
 
     def train_step(self, model, batch, device):
@@ -46,11 +48,11 @@ class AnomalyAdapter(TaskAdapter):
         outputs = to_output_dict(model(images))
         labels = torch.stack([t["label"] for t in targets]).to(device)
         masks = torch.stack([t["mask"] for t in targets]).to(device)
-        maps = self._smooth(outputs["anomaly_map"])
+        maps = self._smooth(outputs.get("anomaly_map"))
         return {
             "loss": None,
             "outputs": {
-                "scores": outputs["pred_score"],
+                "scores": outputs.get("pred_score"),
                 "maps": maps,
                 "labels": labels,
                 "masks": masks,
@@ -59,13 +61,19 @@ class AnomalyAdapter(TaskAdapter):
 
     def update_metrics(self, outputs):
         o = outputs["outputs"]
-        if "image_auroc" in self.metrics:
+        if "image_auroc" in self.metrics and o.get("scores") is not None:
             self.metrics["image_auroc"].update(o["scores"], o["labels"])
-        if "pixel_auroc" in self.metrics:
+        if "pixel_auroc" in self.metrics and o.get("maps") is not None:
             self.metrics["pixel_auroc"].update(o["maps"].flatten(), o["masks"].flatten().long())
 
     def compute_metrics(self):
-        return {name: float(metric.compute()) for name, metric in self.metrics.items()}
+        results = {}
+        for name, metric in self.metrics.items():
+            try:
+                results[name] = float(metric.compute())
+            except (ValueError, RuntimeError):
+                pass
+        return results
 
     def reset_metrics(self):
         for metric in self.metrics.values():
@@ -77,8 +85,8 @@ class AnomalyAdapter(TaskAdapter):
         stems = batch[2] if len(batch) > 2 and isinstance(batch[2], (list, tuple)) else None
 
         outputs = to_output_dict(model(images))
-        maps = self._smooth(outputs["anomaly_map"])
-        self._last_maps = maps.detach().cpu()
+        maps = self._smooth(outputs.get("anomaly_map"))
+        self._last_maps = maps.detach().cpu() if maps is not None else None
 
         predictions = []
         for i in range(images.shape[0]):
