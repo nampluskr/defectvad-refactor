@@ -25,8 +25,11 @@
 | Reconstruction / Adversarial | GANomaly | Generator-Discriminator 적대적 생성 및 잠재 공간 오차 (image-level) | 구현됨 | 지원 (Dual Adam optimizer) | 지원(image-level) | 지원 | 자체 합성곱 인코더/디코더 | 없음 (from scratch) |
 | Reconstruction / Discriminative | DRAEM | 재구성-판별 듀얼 서브네트워크 + DTD/Perlin 합성 인공 결함 지도학습 | 구현됨 | 지원 | 지원 | 지원 | 자체 서브네트워크 | DTD 텍스처 데이터셋 |
 | Reconstruction / Discrete Latent | DSR | VQ-VAE 이산 코드북 + 듀얼 서브스페이스 재투영 + 2단계 다중 옵티마이저 학습 | 구현됨 | 지원 (2단계 다중 옵티마이저) | 지원 | 지원 | VQ-VAE 이산 모델 | VQ-VAE pretrained 가중치 |
+| Teacher–Student / Foundation Model 무관 | UniNet | source/target 이중 teacher + attention bottleneck + DFS | 구현됨 | 지원 (split-LR AdamW) | 지원 | 지원 | `wide_resnet50_2` | backbone 가중치 |
+| Reconstruction / DINOv2 ViT | Dinomaly | frozen DINOv2 ViT encoder + bottleneck/decoder feature 재구성 | 구현됨 | 지원 (adapter 소유 private optimizer/scheduler, §4.2) | 지원 | 지원 | `dinov2reg_vit_base_14` | DINOv2 pretrained 가중치 |
+| Feature Embedding / Memory Bank (DINOv2 ViT) | AnomalyDINO | DINOv2 ViT patch feature memory bank, no-gradient | 구현됨 | 지원 (fit-only, 1 epoch로 완결) | 지원 | 지원 | `dinov2_vit_small_14` | DINOv2 pretrained 가중치 |
 
-열일곱 모델은 `src/tasks/anomaly/models/` 아래의 pure-PyTorch 모델과 `src/tasks/anomaly/adapters/` 아래의 lifecycle adapter로 구성된다. 학습 열의 `지원`은 gradient 학습만을 뜻하지 않는다. PatchCore의 학습 단계는 파라미터 최적화 대신 정상 이미지의 embedding을 수집하고 memory bank를 구축한다. DFKDE와 GANomaly는 이미지 단위 anomaly score만 산출하므로 평가·시각화에서 pixel 단위 지표를 제공하지 않는다.
+스무 모델은 `src/tasks/anomaly/models/` 아래의 pure-PyTorch 모델과 `src/tasks/anomaly/adapters/` 아래의 lifecycle adapter로 구성된다. 학습 열의 `지원`은 gradient 학습만을 뜻하지 않는다. PatchCore의 학습 단계는 파라미터 최적화 대신 정상 이미지의 embedding을 수집하고 memory bank를 구축한다. DFKDE와 GANomaly는 이미지 단위 anomaly score만 산출하므로 평가·시각화에서 pixel 단위 지표를 제공하지 않는다.
 
 ## 2. 모델 분류 체계
 
@@ -39,8 +42,9 @@
 - STFPM
 - EfficientAD
 - Reverse Distillation
+- UniNet
 
-EfficientAD는 teacher–student 구조와 autoencoder 기반 reconstruction을 결합하므로 `Reconstruction`을 보조 패러다임으로 함께 표기한다. Reverse Distillation은 student가 teacher feature를 그대로 재현하는 대신 teacher의 bottleneck 표현에서 원본 feature 피라미드를 역으로 재구성하도록 학습한다.
+EfficientAD는 teacher–student 구조와 autoencoder 기반 reconstruction을 결합하므로 `Reconstruction`을 보조 패러다임으로 함께 표기한다. Reverse Distillation은 student가 teacher feature를 그대로 재현하는 대신 teacher의 bottleneck 표현에서 원본 feature 피라미드를 역으로 재구성하도록 학습한다. UniNet은 고정된 source teacher와 학습 가능한 target teacher 이중 구조를 attention bottleneck과 DFS(Domain-related Feature Selection)로 결합해, student가 두 teacher의 feature를 동시에 근사하도록 학습한다.
 
 ### 2.2 Normalizing Flow
 
@@ -60,8 +64,9 @@ FastFlow는 backbone feature map 전체를 2D spatial flow로 한 번에 변환�
 - PatchCore
 - PaDiM
 - CFA
+- AnomalyDINO
 
-PaDiM은 개별 embedding을 memory bank에 그대로 저장하는 대신 patch 위치별로 embedding 분포를 다변량 가우시안으로 요약해 저장하고, 추론 시 Mahalanobis distance를 anomaly signal로 사용한다. CFA는 memory bank가 정상 embedding의 (선택적으로 k-means로 축소한) 클러스터 중심으로 구성되고, 이 중심까지의 거리를 gradient로 직접 학습하는 descriptor network를 통해 최소화한다는 점에서 PatchCore·PaDiM과 다르다 — memory bank가 고정된 통계가 아니라 학습 대상이다.
+PaDiM은 개별 embedding을 memory bank에 그대로 저장하는 대신 patch 위치별로 embedding 분포를 다변량 가우시안으로 요약해 저장하고, 추론 시 Mahalanobis distance를 anomaly signal로 사용한다. CFA는 memory bank가 정상 embedding의 (선택적으로 k-means로 축소한) 클러스터 중심으로 구성되고, 이 중심까지의 거리를 gradient로 직접 학습하는 descriptor network를 통해 최소화한다는 점에서 PatchCore·PaDiM과 다르다 — memory bank가 고정된 통계가 아니라 학습 대상이다. AnomalyDINO는 PatchCore와 동일한 memory bank/coreset 메커니즘(`KCenterGreedy`, `AnomalyMapGenerator`)을 재사용하되, backbone을 CNN 대신 frozen DINOv2 ViT로 교체하고 patch feature를 L2 정규화 후 코사인 거리로 비교한다.
 
 ### 2.4 Density Estimation
 
@@ -77,8 +82,9 @@ DFM은 `score_type` 설정에 따라 PCA 재구성 오차(`fre`, pixel-level 지
 정상 feature 또는 이미지를 저차원 잠재 공간으로 압축한 뒤 재구성하고, 원본과의 재구성 오차(Reconstruction Error)를 anomaly signal로 사용한다.
 
 - FRE
+- Dinomaly
 
-FRE는 고정된 CNN backbone feature를 Tied AutoEncoder(가중치 공유 선형 오토인코더)로 학습하여 feature 재구성 오차(MSE)를 픽셀 단위 이상 맵과 스코어로 계산한다.
+FRE는 고정된 CNN backbone feature를 Tied AutoEncoder(가중치 공유 선형 오토인코더)로 학습하여 feature 재구성 오차(MSE)를 픽셀 단위 이상 맵과 스코어로 계산한다. Dinomaly는 frozen DINOv2 ViT encoder의 다중 계층 feature를 bottleneck MLP로 압축한 뒤 ViT decoder로 재구성하고, encoder-decoder 간 코사인 유사도를 anomaly signal로 사용한다.
 
 ### 2.6 Discriminative / Synthetic Anomaly
 
@@ -519,6 +525,71 @@ DSR(Dual Subspace Re-Projection Network)은 사전학습된 VQ-VAE 이산 잠재
 | `num_residual_layers` | `int` | `2` | 양의 정수 | Residual 블록 수 |
 | `num_residual_hiddens` | `int` | `64` | 양의 정수 | Residual 은닉 채널 수 |
 
+### 3.18 UniNet
+
+UniNet은 고정된 source teacher와 학습 가능한 target teacher 이중 구조에서 추출한 feature를 attention bottleneck으로 결합하고, DFS(Domain-related Feature Selection)로 선별한 뒤 student(ResNet decoder)가 두 teacher의 feature를 동시에 근사하도록 학습하는 모델이다.
+
+- 모델 factory: `uninet_anomaly` (별칭: `uninet`)
+- Adapter: `uninet`
+- Config: `configs/anomaly/models/uninet.yaml`
+- 기본 backbone: `wide_resnet50_2` (student/teacher 공통, selector로 `resnet18`/`resnet50` 전환 가능)
+- 학습 대상: student(ResNet decoder), bottleneck, DFS, target teacher (source teacher는 영구 freeze)
+- 로컬 자산: `${paths.backbone_root}/wide_resnet50_2-95faca4d.pth` (teacher/student 공통 초기 가중치)
+- 구현 특이사항: `UniNetAdapter.configure_optimizers`가 upstream의 split-LR AdamW(student+bottleneck+dfs @ 5e-3, target_teacher @ 1e-6)를 그대로 재현한다. `source_teacher`는 인스턴스 수준 `train` 메서드 오버라이드로 공통 engine의 매 epoch `model.train()` 재귀 호출에도 eval 고정을 유지한다. MVTec train split이 빈 target(`{}`)만 제공하므로 all-zero-label로 대체하는데, all-normal 배치에서는 실제 all-zero per-pixel mask와 수학적으로 동치다.
+
+#### 모델 파라미터
+
+| 파라미터 | 타입 | 기본값 | 지원값 | 설명 |
+|---|---|---|---|---|
+| `weights_path` | `str \| None` | `${paths.backbone_root}/wide_resnet50_2-95faca4d.pth` | 로컬 파일 경로 | teacher/student 초기 가중치 경로 |
+| `student_backbone` | `str` | `wide_resnet50_2` | `resnet18`, `resnet50`, `wide_resnet50_2` | student decoder 백본 |
+| `teacher_backbone` | `str` | `wide_resnet50_2` | `resnet18`, `resnet50`, `wide_resnet50_2` | teacher 백본 |
+| `temperature` | `float` | `0.1` | 양의 실수 | contrastive loss 온도 |
+
+### 3.19 Dinomaly
+
+Dinomaly는 frozen DINOv2 ViT encoder에서 추출한 다중 계층 feature를 bottleneck MLP로 압축한 뒤 ViT decoder로 재구성하고, encoder-decoder 간 코사인 유사도를 anomaly signal로 사용하는 모델이다.
+
+- 모델 factory: `dinomaly_anomaly` (별칭: `dinomaly`)
+- Adapter: `dinomaly`
+- Config: `configs/anomaly/models/dinomaly.yaml`
+- 기본 encoder: `dinov2reg_vit_base_14` (selector로 small/large 전환 가능)
+- 학습 대상: bottleneck, decoder (encoder는 영구 freeze)
+- 로컬 자산: `${paths.backbone_root}/dinov2_vit*_[reg4_]pretrain.pth` (DINOv2 pretrained 가중치)
+- 구현 특이사항: upstream의 per-step `WarmCosineScheduler` + `StableAdamW`는 공통 engine이 `scheduler.step()`을 epoch당 1회만 호출하는 구조와 맞지 않아, `DinomalyAdapter`가 private optimizer/scheduler를 소유하고 매 배치 zero_grad/backward/step을 직접 수행한 뒤 zero dummy loss를 engine에 반환한다(`CflowAdapter`와 동일 패턴, private step 후 `.grad`를 반드시 다시 비워야 engine 소유 optimizer가 stale gradient로 이중 업데이트하지 않는다). `DinoV2Loader`가 캐시 디렉터리를 하드코딩하므로 `build_dinomaly`가 생성 구간에서만 `__init__`을 몽키패치해 로컬 `paths.backbone_root`를 가리키게 전환하고, `components/dinov2/local_preflight.py`로 실제 요청될 파일 존재를 생성 전에 강제 검증한다. `data.image_size=[392,392]`는 upstream의 Resize(448)+CenterCrop(392) 근사치다(현재 transform에 crop 단계 없음).
+
+#### 모델 파라미터
+
+| 파라미터 | 타입 | 기본값 | 지원값 | 설명 |
+|---|---|---|---|---|
+| `weights_path` | `str \| None` | `${paths.backbone_root}/dinov2_vitb14_reg4_pretrain.pth` | 로컬 파일 경로 (디렉터리만 실제 사용) | DINOv2 pretrained 가중치가 있는 디렉터리를 가리키는 파일 |
+| `encoder_name` | `str` | `dinov2reg_vit_base_14` | `dinov2reg_vit_{small,base,large}_14` | DINOv2 encoder 아키텍처 |
+| `bottleneck_dropout` | `float` | `0.2` | `0.0` ~ `1.0` | bottleneck MLP dropout |
+| `decoder_depth` | `int` | `8` | 양의 정수 (2 이상) | ViT decoder 블록 수 |
+
+### 3.20 AnomalyDINO
+
+AnomalyDINO는 frozen DINOv2 ViT의 patch feature를 memory bank에 저장하고 최근접 이웃 코사인 거리를 anomaly signal로 사용하는, PatchCore와 동일한 메커니즘의 no-gradient 모델이다.
+
+- 모델 factory: `anomaly_dino_anomaly` (별칭: `anomaly_dino`)
+- Adapter: `anomaly_dino`
+- Config: `configs/anomaly/models/anomaly_dino.yaml`
+- 기본 encoder: `dinov2_vit_small_14`
+- 학습 대상: 없음 (전체 freeze, memory bank만 구축)
+- 로컬 자산: `${paths.backbone_root}/dinov2_vit*_pretrain.pth` (DINOv2 pretrained 가중치)
+- 구현 특이사항: PatchCore와 동일한 `KCenterGreedy`(coreset subsampling)와 `AnomalyMapGenerator`를 재사용한다. `AnomalyDinoAdapter.on_validation_start`가 `model.fit()`으로 memory bank를 1회 확정한다(PatchCore의 `subsample_embedding`과 동일 시점). DINOv2 로더의 다운로드 폴백 방지는 Dinomaly와 동일하게 팩토리 몽키패치 + `local_preflight`로 처리한다. fit-only 구조라 1 epoch로 학습이 완결된다.
+
+#### 모델 파라미터
+
+| 파라미터 | 타입 | 기본값 | 지원값 | 설명 |
+|---|---|---|---|---|
+| `weights_path` | `str \| None` | `${paths.backbone_root}/dinov2_vits14_pretrain.pth` | 로컬 파일 경로 (디렉터리만 실제 사용) | DINOv2 pretrained 가중치가 있는 디렉터리를 가리키는 파일 |
+| `encoder_name` | `str` | `dinov2_vit_small_14` | `dinov2_vit_{small,base,large}_14` | DINOv2 encoder 아키텍처 |
+| `num_neighbours` | `int` | `1` | 양의 정수 | kNN 탐색 이웃 수 |
+| `masking` | `bool` | `False` | `True`/`False` | PCA 기반 배경 마스킹 사용 여부 |
+| `coreset_subsampling` | `bool` | `False` | `True`/`False` | greedy coreset 축소 사용 여부 |
+| `sampling_ratio` | `float` | `0.1` | `0.0` ~ `1.0` | coreset 샘플링 비율 |
+
 ## 4. 공통 통합 구조
 
 ### 4.1 모델 코드와 SSOT
@@ -590,6 +661,9 @@ anomaly map과 anomaly score는 모델마다 스케일이 크게 다르므로(CS
 | GANomaly | 없음 (from scratch) |
 | DRAEM | `${paths.dataset_root}/dtd` |
 | DSR | `${paths.backbone_root}/vq_model_pretrained_128_4096.pckl` |
+| UniNet | `${paths.backbone_root}/wide_resnet50_2-95faca4d.pth` |
+| Dinomaly | `${paths.backbone_root}/dinov2_vitb14_reg4_pretrain.pth` (디렉터리 전체 `dinov2_vit*_[reg4_]pretrain.pth` 필요) |
+| AnomalyDINO | `${paths.backbone_root}/dinov2_vits14_pretrain.pth` (디렉터리 전체 `dinov2_vit*_pretrain.pth` 필요) |
 
 Selector로 backbone이나 모델 크기를 변경하면 해당 selector가 지정하는 가중치 경로도 함께 적용된다. 경로는 config placeholder를 유지하고 제품 코드에 하드코딩하지 않는다.
 

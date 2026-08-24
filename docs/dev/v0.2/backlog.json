@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "version": "v0.2",
   "created": "2026-08-23",
-  "updated": "2026-08-23",
+  "updated": "2026-08-24",
   "scope": "레거시 defectvad 20개 anomaly detection 모델 전체를 cv_boilerplate 기반 v0.2 아키텍처로 포팅 및 검증",
   "remote_repository": "https://github.com/nampluskr/defectvad-refactor",
   "reference_repositories": {
@@ -112,14 +112,18 @@
           "title": "STFPM 모델 포팅 및 어댑터/설정 작성",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["stfpm"]
+          "models": [
+            "stfpm"
+          ]
         },
         {
           "id": "P0-T03",
           "title": "EfficientAD 모델 포팅 및 어댑터/설정 작성",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["efficientad"]
+          "models": [
+            "efficientad"
+          ]
         }
       ]
     },
@@ -127,7 +131,9 @@
       "id": "P1",
       "title": "Normalizing Flow & Knowledge Distillation 확장",
       "status": "done",
-      "depends_on": ["P0"],
+      "depends_on": [
+        "P0"
+      ],
       "exit_criteria": [
         "FastFlow, Reverse Distillation 모델 포팅 완료",
         "FrEIA 기반 normalizing flow 파이프라인 및 no-download 팩토리 구현",
@@ -139,14 +145,18 @@
           "title": "FastFlow 모델 포팅 및 FrEIA 의존성 통합",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["fastflow"]
+          "models": [
+            "fastflow"
+          ]
         },
         {
           "id": "P1-T02",
           "title": "Reverse Distillation 모델 포팅 및 one-class bottleneck 검증",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["reversedistill"]
+          "models": [
+            "reversedistill"
+          ]
         }
       ]
     },
@@ -154,7 +164,9 @@
       "id": "P2",
       "title": "Feature Embedding / Memory Bank 모델 통합",
       "status": "done",
-      "depends_on": ["P1"],
+      "depends_on": [
+        "P1"
+      ],
       "exit_criteria": [
         "PatchCore, PaDiM 모델 포팅 완료",
         "k-NN coreset subsampling 및 Gaussian multivariate statistics 피팅 구현",
@@ -166,14 +178,18 @@
           "title": "PatchCore 모델 포팅 및 Coreset memory bank 구현",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["patchcore"]
+          "models": [
+            "patchcore"
+          ]
         },
         {
           "id": "P2-T02",
           "title": "PaDiM 모델 포팅 및 feature dimension reduction / covariance 피팅",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["padim"]
+          "models": [
+            "padim"
+          ]
         }
       ]
     },
@@ -181,7 +197,9 @@
       "id": "P3",
       "title": "Density Estimation & Feature Adaptation 확장",
       "status": "done",
-      "depends_on": ["P2"],
+      "depends_on": [
+        "P2"
+      ],
       "exit_criteria": [
         "DFM, DFKDE, CFA 3개 모델 포팅 완료",
         "PCA / KDE 밀도 추정 및 patch feature adaptation 학습 구조 구현",
@@ -193,21 +211,27 @@
           "title": "DFM 모델 포팅 및 PCA feature reconstruction 검증",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["dfm"]
+          "models": [
+            "dfm"
+          ]
         },
         {
           "id": "P3-T02",
           "title": "DFKDE 모델 포팅 및 Gaussian KDE density estimation 구현",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["dfkde"]
+          "models": [
+            "dfkde"
+          ]
         },
         {
           "id": "P3-T03",
           "title": "CFA 모델 포팅 및 coupled hypersphere loss 구현 (non-leaf backward 수정)",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["cfa"]
+          "models": [
+            "cfa"
+          ]
         },
         {
           "id": "P3-T04",
@@ -221,7 +245,9 @@
       "id": "P4",
       "title": "Fine-grained Normalizing Flow (CFLOW) 통합",
       "status": "done",
-      "depends_on": ["P3"],
+      "depends_on": [
+        "P3"
+      ],
       "exit_criteria": [
         "CFLOW 모델 포팅 완료",
         "fiber-level 다중 Adam step을 위한 private optimizer 패턴 구현",
@@ -233,7 +259,9 @@
           "title": "CFLOW 모델 포팅 및 CflowAdapter private Adam 옵티마이저 구현",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["cflow"]
+          "models": [
+            "cflow"
+          ]
         },
         {
           "id": "P4-T02",
@@ -247,7 +275,9 @@
       "id": "P5",
       "title": "Tier 1 모델 포팅 (FRE, U-Flow, CS-Flow, SuperSimpleNet)",
       "status": "done",
-      "depends_on": ["P4"],
+      "depends_on": [
+        "P4"
+      ],
       "exit_criteria": [
         "FRE, U-Flow, CS-Flow, SuperSimpleNet 4개 모델 포팅 완료",
         "/add-anomalib-model 스킬 10단계 절차에 따른 V-01~V-07 필수 검증 조건 충족",
@@ -260,10 +290,20 @@
           "title": "FRE 모델 포팅 및 어댑터/설정 작성",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["fre"],
+          "models": [
+            "fre"
+          ],
           "paradigm": "Autoencoder / Reconstruction (TiedAE)",
           "learning_type": "gradient training (MSE loss on TiedAE)",
-          "verification_conditions": ["V-01", "V-02", "V-03", "V-04", "V-05", "V-06", "V-07"],
+          "verification_conditions": [
+            "V-01",
+            "V-02",
+            "V-03",
+            "V-04",
+            "V-05",
+            "V-06",
+            "V-07"
+          ],
           "description": "anomalib image/fre 모델을 models/fre/에 복사하고 no-download 팩토리 및 FreAdapter를 구현한다."
         },
         {
@@ -271,10 +311,20 @@
           "title": "U-Flow 모델 포팅 및 자체 feature extraction 통합",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["uflow"],
+          "models": [
+            "uflow"
+          ],
           "paradigm": "Normalizing Flow (multi-scale)",
           "learning_type": "gradient training",
-          "verification_conditions": ["V-01", "V-02", "V-03", "V-04", "V-05", "V-06", "V-07"],
+          "verification_conditions": [
+            "V-01",
+            "V-02",
+            "V-03",
+            "V-04",
+            "V-05",
+            "V-06",
+            "V-07"
+          ],
           "description": "anomalib image/uflow 모델 및 feature_extraction.py 복사, UflowAdapter 및 FrEIA flow 통합."
         },
         {
@@ -282,10 +332,20 @@
           "title": "CS-Flow 모델 포팅 및 cross-scale flow 검증",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["csflow"],
+          "models": [
+            "csflow"
+          ],
           "paradigm": "Normalizing Flow (cross-scale)",
           "learning_type": "gradient training",
-          "verification_conditions": ["V-01", "V-02", "V-03", "V-04", "V-05", "V-06", "V-07"],
+          "verification_conditions": [
+            "V-01",
+            "V-02",
+            "V-03",
+            "V-04",
+            "V-05",
+            "V-06",
+            "V-07"
+          ],
           "description": "anomalib image/csflow 모델 복사, multi-scale feature cross coupling flow 학습 검증."
         },
         {
@@ -293,10 +353,20 @@
           "title": "SuperSimpleNet 모델 포팅 및 anomaly generator 검증",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["supersimplenet"],
+          "models": [
+            "supersimplenet"
+          ],
           "paradigm": "Discriminative (synthetic anomaly)",
           "learning_type": "gradient training",
-          "verification_conditions": ["V-01", "V-02", "V-03", "V-04", "V-05", "V-06", "V-07"],
+          "verification_conditions": [
+            "V-01",
+            "V-02",
+            "V-03",
+            "V-04",
+            "V-05",
+            "V-06",
+            "V-07"
+          ],
           "description": "anomalib image/supersimplenet 모델 및 anomaly_generator.py 복사, SuperSimpleNetAdapter 구현."
         },
         {
@@ -304,7 +374,11 @@
           "title": "Tier 1 모델 적대적 교차 검증 (A3) 및 문서 갱신",
           "status": "done",
           "review_ref": "docs/dev/v0.2/reviews/A3.md",
-          "verification_conditions": ["V-08", "V-09", "V-10"],
+          "verification_conditions": [
+            "V-08",
+            "V-09",
+            "V-10"
+          ],
           "description": "Tier 1 4개 모델에 대해 반대 벤더 CLI 적대적 검증 수행, UPSTREAM-INVENTORY.md 및 anomaly-models.md 갱신."
         }
       ]
@@ -313,7 +387,9 @@
       "id": "P6",
       "title": "Tier 2 모델 포팅 (GANomaly, DRAEM, DSR)",
       "status": "done",
-      "depends_on": ["P5"],
+      "depends_on": [
+        "P5"
+      ],
       "exit_criteria": [
         "GANomaly, DRAEM, DSR 3개 복합 학습 모델 포팅 완료",
         "dual optimizer, texture synthesis 데이터셋, 2단계 latent codebook 학습 구조 안착",
@@ -325,10 +401,20 @@
           "title": "GANomaly 모델 포팅 및 dual optimizer adapter 구현",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["ganomaly"],
+          "models": [
+            "ganomaly"
+          ],
           "paradigm": "Reconstruction (adversarial)",
           "learning_type": "gradient training (dual loss)",
-          "verification_conditions": ["V-01", "V-02", "V-03", "V-04", "V-05", "V-06", "V-07"],
+          "verification_conditions": [
+            "V-01",
+            "V-02",
+            "V-03",
+            "V-04",
+            "V-05",
+            "V-06",
+            "V-07"
+          ],
           "description": "generator/discriminator adversarial training을 지원하는 GanomalyAdapter 작성."
         },
         {
@@ -336,10 +422,20 @@
           "title": "DRAEM 모델 포팅 및 로컬 texture 데이터셋 연동",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["draem"],
+          "models": [
+            "draem"
+          ],
           "paradigm": "Reconstruction (discriminative)",
           "learning_type": "gradient training",
-          "verification_conditions": ["V-01", "V-02", "V-03", "V-04", "V-05", "V-06", "V-07"],
+          "verification_conditions": [
+            "V-01",
+            "V-02",
+            "V-03",
+            "V-04",
+            "V-05",
+            "V-06",
+            "V-07"
+          ],
           "description": "reconstructive subnetwork + discriminative subnetwork 결합, DTD 텍스처 데이터셋 로컬 경로 연동."
         },
         {
@@ -347,10 +443,20 @@
           "title": "DSR 모델 포팅 및 discrete codebook 2단계 학습 구성",
           "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["dsr"],
+          "models": [
+            "dsr"
+          ],
           "paradigm": "Reconstruction (discrete latent)",
           "learning_type": "multi-stage gradient training",
-          "verification_conditions": ["V-01", "V-02", "V-03", "V-04", "V-05", "V-06", "V-07"],
+          "verification_conditions": [
+            "V-01",
+            "V-02",
+            "V-03",
+            "V-04",
+            "V-05",
+            "V-06",
+            "V-07"
+          ],
           "description": "discrete quantized representation 및 dual latent space reconstruction 학습 지원."
         },
         {
@@ -358,15 +464,21 @@
           "title": "Tier 2 모델 적대적 교차 검증 (A4) 및 문서 갱신",
           "status": "done",
           "review_ref": "docs/dev/v0.2/reviews/A4.md",
-          "verification_conditions": ["V-08", "V-09", "V-10"]
+          "verification_conditions": [
+            "V-08",
+            "V-09",
+            "V-10"
+          ]
         }
       ]
     },
     {
       "id": "P7",
       "title": "Tier 3 Foundation Model 계열 포팅 (UniNet, DinoMaly, AnomalyDINO)",
-      "status": "ready",
-      "depends_on": ["P6"],
+      "status": "done",
+      "depends_on": [
+        "P6"
+      ],
       "exit_criteria": [
         "UniNet, DinoMaly, AnomalyDINO 3개 모델 포팅 완료",
         "DINOv2 / ViT 백본 가중치 로컬 오프라인 로딩 체계 검증 (CON-003, CON-004)",
@@ -376,47 +488,83 @@
         {
           "id": "P7-T01",
           "title": "DINOv2 / ViT 백본 가중치 로컬 확보 및 strict loader 구성",
-          "status": "pending",
+          "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "verification_conditions": ["V-03"],
+          "verification_conditions": [
+            "V-03"
+          ],
           "description": "DINOv2 pretrained 가중치 파일의 로컬 존재 확인 및 check-assets / no-download 팩토리 연동."
         },
         {
           "id": "P7-T02",
           "title": "UniNet 모델 포팅 및 attention bottleneck / DFS 컴포넌트 통합",
-          "status": "pending",
+          "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["uninet"],
+          "models": [
+            "uninet"
+          ],
           "paradigm": "Teacher-Student (multi-branch)",
           "learning_type": "gradient training",
-          "verification_conditions": ["V-01", "V-02", "V-03", "V-04", "V-05", "V-06", "V-07"]
+          "verification_conditions": [
+            "V-01",
+            "V-02",
+            "V-03",
+            "V-04",
+            "V-05",
+            "V-06",
+            "V-07"
+          ]
         },
         {
           "id": "P7-T03",
           "title": "DinoMaly 모델 포팅 및 ViT backbone reconstruction 검증",
-          "status": "pending",
+          "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["dinomaly"],
+          "models": [
+            "dinomaly"
+          ],
           "paradigm": "Reconstruction (ViT 기반)",
           "learning_type": "gradient training",
-          "verification_conditions": ["V-01", "V-02", "V-03", "V-04", "V-05", "V-06", "V-07"]
+          "verification_conditions": [
+            "V-01",
+            "V-02",
+            "V-03",
+            "V-04",
+            "V-05",
+            "V-06",
+            "V-07"
+          ]
         },
         {
           "id": "P7-T04",
           "title": "AnomalyDINO 모델 포팅 및 ViT feature extraction 검증",
-          "status": "pending",
+          "status": "done",
           "skill_ref": "/add-anomalib-model",
-          "models": ["anomalydino"],
+          "models": [
+            "anomalydino"
+          ],
           "paradigm": "Feature Embedding (ViT 기반)",
           "learning_type": "no-gradient 또는 lightweight",
-          "verification_conditions": ["V-01", "V-02", "V-03", "V-04", "V-05", "V-06", "V-07"]
+          "verification_conditions": [
+            "V-01",
+            "V-02",
+            "V-03",
+            "V-04",
+            "V-05",
+            "V-06",
+            "V-07"
+          ]
         },
         {
           "id": "P7-T05",
           "title": "Tier 3 모델 적대적 교차 검증 (A5) 및 문서 갱신",
-          "status": "pending",
+          "status": "done",
           "review_ref": "docs/dev/v0.2/reviews/A5.md",
-          "verification_conditions": ["V-08", "V-09", "V-10"]
+          "verification_conditions": [
+            "V-08",
+            "V-09",
+            "V-10"
+          ]
         }
       ]
     },
@@ -424,7 +572,9 @@
       "id": "P8",
       "title": "20개 모델 전체 벤치마크 및 최종 완료 검증",
       "status": "pending",
-      "depends_on": ["P7"],
+      "depends_on": [
+        "P7"
+      ],
       "exit_criteria": [
         "레거시 defectvad의 20개 모델 전체 포팅 완료",
         "20개 모델 전체 스모크(train/eval/predict) 일괄 통과",
@@ -437,21 +587,29 @@
           "id": "P8-T01",
           "title": "20개 모델 전체 일괄 스모크 테스트 실행 및 확인",
           "status": "pending",
-          "verification_conditions": ["V-05", "V-06"],
+          "verification_conditions": [
+            "V-05",
+            "V-06"
+          ],
           "description": "scripts/train.py, scripts/evaluate.py, scripts/predict.py를 20개 모델 전체에 대해 1-epoch 스모크 일괄 검증."
         },
         {
           "id": "P8-T02",
           "title": "대표 카테고리 벤치마크 가이드 작성 및 사용자 실행 수치 집계",
           "status": "pending",
-          "verification_conditions": ["V-11"],
+          "verification_conditions": [
+            "V-11"
+          ],
           "description": "scripts/batch.py 기반 카테고리별 성능 측정 CLI 명령어 제공 및 결과 AUROC 집계."
         },
         {
           "id": "P8-T03",
           "title": "anomaly-models.md 가이드 및 UPSTREAM-INVENTORY.md 최종 동기화",
           "status": "pending",
-          "verification_conditions": ["V-09", "V-10"],
+          "verification_conditions": [
+            "V-09",
+            "V-10"
+          ],
           "description": "20개 모델의 파라미터 표, 분류 체계, 파일 인벤토리, 원본 diff 및 sha256 최종 반영."
         },
         {

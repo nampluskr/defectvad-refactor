@@ -18,6 +18,9 @@ from src.tasks.anomaly.models.ganomaly import GanomalyModel, build_ganomaly
 from src.tasks.anomaly.models.uflow import UflowModel, build_uflow
 from src.tasks.anomaly.models.csflow import CsFlowModel, build_csflow
 from src.tasks.anomaly.models.supersimplenet import SupersimplenetModel, build_supersimplenet
+from src.tasks.anomaly.models.uninet import UniNetModel, build_uninet
+from src.tasks.anomaly.models.dinomaly import DinomalyModel, build_dinomaly
+from src.tasks.anomaly.models.anomaly_dino import AnomalyDINOModel, build_anomaly_dino
 
 __all__ = [
     "STFPMModel",
@@ -54,4 +57,10 @@ __all__ = [
     "build_csflow",
     "SupersimplenetModel",
     "build_supersimplenet",
+    "UniNetModel",
+    "build_uninet",
+    "DinomalyModel",
+    "build_dinomaly",
+    "AnomalyDINOModel",
+    "build_anomaly_dino",
 ]

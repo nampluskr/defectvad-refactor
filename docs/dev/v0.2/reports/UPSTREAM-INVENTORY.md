@@ -938,7 +938,65 @@ core(`engine.py`)와 공용 지표를 모두 건드렸으므로 대표 모델 �
 | CFLOW | image 1.000 / pixel 0.985 | image 1.000 / pixel 0.985 | 일치 |
 | PaDiM | image 0.997 / pixel 0.981 | image 0.995 / pixel 0.981 | image는 §23.4의 지표 교정분 |
 
-## 24. 미완 항목
+## 24. 모델 연결 — UniNet
+
+### 24.1 `lightning_model.py` 이관 결과
+
+Upstream `UniNet`은 `configure_optimizers`에서 `AdamW([{"params": self.model.student.parameters()}, {"params": self.model.bottleneck.parameters()}, {"params": self.model.dfs.parameters()}, {"params": self.model.teachers.target_teacher.parameters(), "lr": 1e-6}], lr=5e-3, betas=(0.9,0.999), weight_decay=1e-5, eps=1e-10, amsgrad=True)`와 `MultiStepLR(milestones=[0.8*max_steps_or_epochs], gamma=0.2)`를 반환한다. `training_step`은 `self.model(images=batch.image, masks=batch.gt_mask, labels=batch.gt_label)`을 호출해 loss 텐서를 직접 받고, `validation_step`은 `self.model(batch.image)`를 호출해 `InferenceBatch`를 받는다. `trainer_arguments`는 빈 dict다.
+
+이 프로젝트에서는:
+- Optimizer: `UniNetAdapter.configure_optimizers`가 upstream과 동일한 4-group split-LR AdamW를 그대로 구성 (`multistep` 스케줄러는 `core/builders.py`에 이미 존재하는 범용 빌더 재사용)
+- Training step: `UniNetAdapter.train_step`. MVTec train split이 빈 target(`{}`)이라 mask/label이 없는 경우 all-zero-label로 대체 — all-normal 배치에서 실제 all-zero per-pixel mask와 수학적으로 동치임을 확인함(§A5)
+- Validation / Prediction: 공통 `AnomalyAdapter.eval_step`/`predict_step`으로 흡수
+- Backbone: `build_uninet`이 `torchvision.models.<backbone>`을 생성 구간에서만 `pretrained=False`로 치환해 오프라인 생성 후, source/target teacher 양쪽에 동일 로컬 가중치를 strict 로드. `source_teacher`는 `requires_grad=False` 고정 + 인스턴스 수준 `train` 오버라이드로 engine의 매 epoch `model.train()` 재귀에도 eval 고정 유지 (EfficientAD teacher와 동일 패턴)
+
+### 24.2 스모크 및 10-epoch 검증 결과
+
+- `train.py` (MVTec bottle, 1 epoch): 정상 완료, loss 16.046, valid image_auroc 0.979, pixel_auroc 0.891
+- `evaluate.py` (MVTec bottle, test): image_auroc 0.979, pixel_auroc 0.914
+- `predict.py` (MVTec bottle test broken_large 20장): 추론 및 시각화 저장 정상 완료 (1.2 img/s)
+- 10-epoch 학습 (bottle): image_auroc 2 epoch부터 1.000 포화, pixel_auroc 10 epoch 시점 0.989
+
+## 25. 모델 연결 — Dinomaly
+
+### 25.1 `lightning_model.py` 이관 결과
+
+Upstream `Dinomaly`는 `configure_optimizers`에서 `total_steps`(= `max_steps` 또는 `max_epochs × len(train_dataloader)`)를 동적으로 계산해 `StableAdamW([{"params": self.trainable_modules.parameters()}], lr=2e-3, betas=(0.9,0.999), weight_decay=1e-4, amsgrad=True, eps=1e-8)`와 `WarmCosineScheduler(base_value=2e-3, final_value=2e-4, total_iters=total_steps, warmup_iters=100)`를 매 optimizer step(배치)마다 `.step()`하는 구조로 반환한다. `training_step`은 `self.model(batch.image, global_step=self.global_step)`을 호출한다. `__init__`에서 전체 파라미터를 freeze한 뒤 `bottleneck`/`decoder`만 unfreeze하고 truncated-normal(Linear)/constant(LayerNorm) 초기화를 적용한다. `configure_pre_processor`는 `Resize(448)→CenterCrop(392)→Normalize(ImageNet)`을 사용한다.
+
+이 프로젝트에서는:
+- Optimizer/Scheduler: 공통 engine이 `scheduler.step()`을 epoch당 1회만 호출해 upstream의 per-step 스케줄과 맞지 않으므로, `DinomalyAdapter`가 `StableAdamW`+`WarmCosineScheduler`를 private으로 소유하고 매 배치 zero_grad→backward→step→scheduler.step→**zero_grad**를 직접 수행한 뒤 zero dummy loss를 engine에 반환한다(`CflowAdapter`와 동일 패턴). 적대적 검토(A5)에서 private step 후 `.grad`를 재차 비우지 않아 engine 소유 optimizer가 stale gradient로 이중 업데이트하는 Major 결함이 발견되어 즉시 수정했다.
+- Freeze/초기화: `build_dinomaly` 팩토리가 upstream `Dinomaly.__init__`과 동일한 순서(전체 freeze → bottleneck/decoder unfreeze → trunc_normal/LayerNorm 초기화)로 재현
+- Training step: `DinomalyAdapter.train_step`
+- Backbone: `DinoV2Loader`가 캐시 디렉터리를 `torch.hub.get_dir()/dinov2`로 하드코딩하므로, `build_dinomaly`가 생성 구간에서만 `DinoV2Loader.__init__`을 몽키패치해 로컬 `paths.backbone_root`로 전환. 적대적 검토(A5)에서 sibling 파일이 없을 때 조용히 네트워크 다운로드로 폴백할 수 있는 Critical 결함이 발견되어, `DinoV2Loader`의 이름 파싱/경로 결정 로직을 재사용하는 `components/dinov2/local_preflight.py`로 생성 전 강제 검증을 추가했다.
+- 전처리: `data.image_size=[392,392]` 단일 Resize로 upstream의 Resize(448)+CenterCrop(392)를 근사(현재 `anomaly_default` transform에 crop 단계 없음) — 알려진 편차로 config에 명시
+
+### 25.2 스모크 및 10-epoch 검증 결과
+
+- `train.py` (MVTec bottle, 1 epoch, batch_size 4): 정상 완료, loss 0.378, valid image_auroc 1.000, pixel_auroc 0.965
+- `evaluate.py` (MVTec bottle, test): image_auroc 0.987, pixel_auroc 0.966
+- `predict.py` (MVTec bottle test broken_large 20장): 추론 및 시각화 저장 정상 완료 (1.1 img/s)
+- 10-epoch 학습 (bottle): image_auroc 2 epoch부터 1.000 포화, pixel_auroc 10 epoch 시점 0.990 (gradient-누수 수정 후 재검증)
+
+## 26. 모델 연결 — AnomalyDINO
+
+### 26.1 `lightning_model.py` 이관 결과
+
+Upstream `AnomalyDino`는 gradient 학습이 없는 memory-bank 모델이다. `training_step`은 `self.model(batch.image)`로 정규화된 patch feature를 embedding store에 수집만 하고, `on_train_epoch_end`에서 `self.model.fit()`을 호출해 memory bank를 확정한다(옵션에 따라 coreset subsampling 포함). `validation_step`은 `self.model(batch.image)`로 kNN 코사인 거리 기반 `InferenceBatch`를 반환한다.
+
+이 프로젝트에서는:
+- Training step: `AnomalyDinoAdapter.train_step`이 PatchCore와 동일하게 dummy 0 loss(`requires_grad=True`인 detached leaf)를 반환
+- Memory bank 확정: `AnomalyDinoAdapter.on_validation_start`가 `model.fit()`을 1회 호출 (`model.memory_bank.numel() > 0`이면 skip) — PatchCore의 `subsample_embedding` 시점과 동일
+- Backbone: `AnomalyDINOModel`이 `DinoV2Loader.from_name(encoder_name)`을 호출하는 구조라 Dinomaly와 동일한 몽키패치 + `local_preflight` 방식을 재사용
+- Anomaly map: PatchCore의 `AnomalyMapGenerator`와 `KCenterGreedy`를 그대로 import해 재사용 (신규 컴포넌트 복제 없음)
+
+### 26.2 스모크 검증 결과
+
+- `train.py` (MVTec bottle, 1 epoch, batch_size 4, fit-only): 정상 완료, image_auroc 1.000, pixel_auroc 0.985
+- `evaluate.py` (MVTec bottle, test): image_auroc 1.000, pixel_auroc 0.991
+- `predict.py` (MVTec bottle test broken_large 20장): 추론 및 시각화 저장 정상 완료 (1.2 img/s)
+- fit-only 구조라 10-epoch 재학습은 수행하지 않음 (PatchCore와 동일하게 1 epoch로 완결)
+
+## 27. 미완 항목
 
 - FastFlow `train.epochs: 100`은 잠정값이다. 핀된 클론에 `examples/configs`가 sparse-checkout되어 있지 않아 anomalib의 공식 학습 예산을 확인하지 못했다.
 - 3개 카테고리(bottle, carpet, capsule) 기준 정식 성능 비교(수치 기록) — **사용자 실행 대기**. PaDiM·Reverse Distillation·DFM·DFKDE·CFA·CFLOW·FRE·U-Flow·CS-Flow·SuperSimpleNet·GANomaly·DRAEM·DSR 포함.
@@ -960,8 +1018,12 @@ core(`engine.py`)와 공용 지표를 모두 건드렸으므로 대표 모델 �
 - DSR `best image_auroc 0.667`(capsule, 10 epoch)은 논문 수치(~0.98)에 한참 못 미친다. phase 1이 7 epoch뿐이라 학습 예산이 절대 부족하다 — `--epochs 100` 이상으로 재확인 필요.
 - CS-Flow는 256×256 입력에서 z 해상도가 8×8 / 4×4 / 2×2로 매우 거칠다. 지표를 고친 뒤에도 pixel 국소화 정밀도는 태생적으로 제한된다(upstream도 `input_size`를 데이터 쪽에서 받으므로 256이 틀린 값은 아니다).
 - GANomaly는 MVTec에서 anomalib reference 자체가 평균 0.421로 0.5 미만이다(§23.1). 실사용 후보에서 제외하는 것이 타당하다.
+- UniNet `weights_path=None` 시 source/target teacher가 조용히 랜덤 초기화된다 (적대적 검토 A5 Critical). PatchCore/PaDiM/DFM/DFKDE와 동일한 프로젝트 전역 패턴(§14 참조)이라 이번 세션에서는 수정하지 않음 — 별도 core 차원 과제로 이월.
+- UniNet/Dinomaly/AnomalyDINO 3개 카테고리(bottle/carpet/capsule) 기준 정식 성능 비교 — **사용자 실행 대기**.
+- Dinomaly `data.image_size=[392,392]`는 upstream Resize(448)+CenterCrop(392)의 근사치다. `anomaly_default` transform에 center-crop 단계를 추가하면(공통 코드 변경, 2개 이상 모델에서 필요 확인 시) 더 정확히 재현 가능.
+- Dinomaly `train.epochs: 100`, UniNet `train.epochs: 100`은 잠정값이다(upstream trainer_arguments가 epoch 대신 max_steps=5000 또는 빈 dict를 사용).
 
 ---
 
 작성일: 2026-08-23 (최종 갱신 2026-08-24)
-문서 상태: FastFlow·PatchCore·PaDiM·Reverse Distillation·DFM·DFKDE·CFA·CFLOW·FRE·U-Flow·CS-Flow·SuperSimpleNet·GANomaly·DRAEM·DSR 추가 산출물 (anomalib `091ca6a` 기준) + 사용자 실학습 결함 3건 수정 기록(§23)
+문서 상태: FastFlow·PatchCore·PaDiM·Reverse Distillation·DFM·DFKDE·CFA·CFLOW·FRE·U-Flow·CS-Flow·SuperSimpleNet·GANomaly·DRAEM·DSR·UniNet·Dinomaly·AnomalyDINO 추가 산출물 (anomalib `091ca6a` 기준) + 사용자 실학습 결함 3건 수정 기록(§23) + Tier 3 적대적 검토 A5 결함 2건 수정 기록(§24~26)

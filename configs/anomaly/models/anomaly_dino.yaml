@@ -1,0 +1,51 @@
+model:
+  name: anomaly_dino_anomaly
+  params:
+    # Only this file's *directory* (paths.backbone_root) is actually used --
+    # build_anomaly_dino points DinoV2Loader's cache_dir there so it resolves
+    # every dinov2_vit*_pretrain.pth by its own naming convention. The exact
+    # filename here just has to exist so the common config validator's
+    # os.path.isfile check passes, and should match encoder_name below.
+    weights_path: ${paths.backbone_root}/dinov2_vits14_pretrain.pth
+    encoder_name: dinov2_vit_small_14
+    num_neighbours: 1
+    masking: false
+    coreset_subsampling: false
+    sampling_ratio: 0.1
+
+adapter:
+  name: anomaly_dino
+  params:
+    # AnomalyDINOModel's AnomalyMapGenerator (reused from PatchCore) already
+    # applies GaussianBlur2d(sigma=4) inside the model. Disabled here so blur
+    # is applied exactly once, matching upstream.
+    smooth_sigma: 0
+
+optim:
+  # AnomalyDINO does no gradient training -- feature extraction runs under
+  # torch.inference_mode() (torch_model.py's extract_features), so every
+  # parameter gradient stays None and optimizer.step() changes nothing. One is
+  # still declared because the common engine always requires an optimizer.
+  optimizer:
+    name: adam
+    params:
+      lr: 0.001
+
+train:
+  # No-gradient memory-bank model, matching PatchCore/DFM/DFKDE: a single pass
+  # over the training set fills the memory bank; the bank is finalized once by
+  # model.fit() before the first validation.
+  epochs: 1
+  grad_clip: null
+
+selectors:
+  encoder:
+    dinov2_vit_small_14:
+      model.params.encoder_name: dinov2_vit_small_14
+      model.params.weights_path: "${paths.backbone_root}/dinov2_vits14_pretrain.pth"
+    dinov2_vit_base_14:
+      model.params.encoder_name: dinov2_vit_base_14
+      model.params.weights_path: "${paths.backbone_root}/dinov2_vitb14_pretrain.pth"
+    dinov2_vit_large_14:
+      model.params.encoder_name: dinov2_vit_large_14
+      model.params.weights_path: "${paths.backbone_root}/dinov2_vitl14_pretrain.pth"

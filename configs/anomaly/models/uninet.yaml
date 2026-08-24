@@ -1,0 +1,53 @@
+model:
+  name: uninet_anomaly
+  params:
+    student_backbone: wide_resnet50_2
+    teacher_backbone: wide_resnet50_2
+    weights_path: ${paths.backbone_root}/wide_resnet50_2-95faca4d.pth
+    temperature: 0.1
+
+adapter:
+  name: uninet
+  params:
+    smooth_sigma: 4.0
+
+optim:
+  # anomalib configure_optimizers: AdamW over student + bottleneck + dfs (lr=5e-3)
+  # plus target_teacher (lr=1e-6); source_teacher is frozen. UniNetAdapter.configure_optimizers
+  # builds this split-LR group set; core/builders.py's single-group build_optimizer is bypassed.
+  optimizer:
+    name: adamw
+    params:
+      lr: 0.005
+      teacher_lr: 0.000001
+      betas: [0.9, 0.999]
+      weight_decay: 0.00001
+      eps: 0.0000000001
+      amsgrad: true
+  scheduler:
+    name: multistep
+    # milestones = round(0.8 * train.epochs) below, gamma=0.2, matching upstream's
+    # MultiStepLR(milestones=[0.8 * max_epochs]).
+    params:
+      milestones: [80]
+      gamma: 0.2
+
+train:
+  # anomalib trainer_arguments is empty (no pinned max_epochs). Provisional --
+  # primary knob to adjust if image/pixel AUROC falls short of reference.
+  epochs: 100
+
+selectors:
+  backbone:
+    wide_resnet50_2:
+      model.params.student_backbone: wide_resnet50_2
+      model.params.teacher_backbone: wide_resnet50_2
+      model.params.weights_path: "${paths.backbone_root}/wide_resnet50_2-95faca4d.pth"
+    resnet18:
+      model.params.student_backbone: resnet18
+      model.params.teacher_backbone: resnet18
+      model.params.weights_path: "${paths.backbone_root}/resnet18-f37072fd.pth"
+    resnet50:
+      model.params.student_backbone: resnet50
+      model.params.teacher_backbone: resnet50
+      model.params.weights_path: "${paths.backbone_root}/resnet50-0676ba61.pth"

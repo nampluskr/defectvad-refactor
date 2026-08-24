@@ -1,0 +1,66 @@
+model:
+  name: dinomaly_anomaly
+  params:
+    # Only this file's *directory* (paths.backbone_root) is actually used --
+    # build_dinomaly points DinoV2Loader's cache_dir there so it resolves every
+    # dinov2_vit*_[reg4_]pretrain.pth by its own naming convention. The exact
+    # filename here just has to exist so the common config validator's
+    # os.path.isfile check passes, and should match encoder_name below.
+    weights_path: ${paths.backbone_root}/dinov2_vitb14_reg4_pretrain.pth
+    encoder_name: dinov2reg_vit_base_14
+    bottleneck_dropout: 0.2
+    decoder_depth: 8
+    remove_class_token: false
+
+adapter:
+  name: dinomaly
+  params:
+    # DinomalyModel's own forward already applies GaussianBlur2d(sigma=4) before
+    # scoring (torch_model.py), so the postprocess smoother is disabled to match
+    # anomalib exactly (blur applied once).
+    smooth_sigma: 0
+    lr: 0.002
+    betas: [0.9, 0.999]
+    weight_decay: 0.0001
+    amsgrad: true
+    eps: 0.00000001
+    base_value: 0.002
+    final_value: 0.0002
+    warmup_iters: 100
+
+optim:
+  # DinomalyAdapter owns a private StableAdamW + WarmCosineScheduler (see
+  # adapter docstring) over the same bottleneck+decoder parameters that the
+  # factory leaves trainable, so this entry only builds the engine's inert
+  # mirror optimizer -- it must see zero gradient, so no weight_decay here.
+  optimizer:
+    name: adam
+    params:
+      lr: 0.0001
+
+data:
+  # Upstream's configure_pre_processor: Resize(448) -> CenterCrop(392) -> Normalize.
+  # This project's anomaly_default transform has no center-crop step, so we
+  # approximate with a direct Resize(392) (392 = 28 * 14, DINOv2 patch_size=14,
+  # required for patch tiling). Known deviation from upstream preprocessing --
+  # primary knob to revisit if AUROC falls short of reference.
+  image_size: [392, 392]
+
+train:
+  # Upstream trainer_arguments pins max_steps=5000 by default (TRAINING_CONFIG),
+  # not epochs. Provisional epoch count; the real schedule length is
+  # epochs * steps/epoch, computed by DinomalyAdapter.on_fit_start.
+  epochs: 100
+  grad_clip: null
+
+selectors:
+  encoder:
+    dinov2reg_vit_small_14:
+      model.params.encoder_name: dinov2reg_vit_small_14
+      model.params.weights_path: "${paths.backbone_root}/dinov2_vits14_reg4_pretrain.pth"
+    dinov2reg_vit_base_14:
+      model.params.encoder_name: dinov2reg_vit_base_14
+      model.params.weights_path: "${paths.backbone_root}/dinov2_vitb14_reg4_pretrain.pth"
+    dinov2reg_vit_large_14:
+      model.params.encoder_name: dinov2reg_vit_large_14
+      model.params.weights_path: "${paths.backbone_root}/dinov2_vitl14_reg4_pretrain.pth"

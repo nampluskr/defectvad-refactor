@@ -36,6 +36,9 @@ anomalib 핀 `091ca6a`(v2.3.0)의 `src/anomalib/models/image/` 디렉터리에 2
 | Reconstruction (adversarial) | GANomaly |
 | Reconstruction (discriminative) | DRAEM |
 | Reconstruction (discrete latent) | DSR |
+| Teacher-Student (dual teacher, DINOv2 무관) | UniNet |
+| Reconstruction (DINOv2 ViT 기반) | Dinomaly |
+| Feature Embedding / Memory Bank (DINOv2 ViT, no-gradient) | AnomalyDINO |
 
 DFM/DFKDE/CFA는 코드 포팅과 registry 등록, config 작성, offline 팩토리 구성을 완료했고, 반대 벤더(Codex CLI) 적대적 검증을 1회 거쳤다(`docs/dev/v0.2/reviews/A1.md`). CFA는 사용자가 실제로 `scripts/train.py`(bottle)를 실행해 학습이 정상 완주됨을 확인했다 -- 이 과정에서 적대적 검토가 잡아내지 못한 결함 2건(YAML `1e-5` 파싱 함정, `CfaLoss.radius`의 non-leaf 텐서 재사용으로 인한 2스텝째 backward 실패)이 드러나 수정했다(`docs/dev/v0.2/reports/UPSTREAM-INVENTORY.md` §12.4). 이후 사용자가 DFM/DFKDE/CFA 세 모델 모두 train/evaluate/predict를 직접 실행해 정상 동작을 확인했다(2026-08-23) -- 구체적인 image/pixel AUROC 수치는 별도로 기록되지 않았다. 3개 카테고리(bottle/carpet/capsule) 기준 정식 성능 비교는 여전히 사용자 실행 대기 상태다. 상세 구현 개요는 `docs/guides/anomaly-models.md` §3.7~§3.9를 참조한다.
 
@@ -57,7 +60,15 @@ DRAEM은 코드 포팅과 registry 등록, config 작성, offline 팩토리 구�
 
 DSR은 코드 포팅과 registry 등록, config 작성, offline 팩토리 구성을 완료했다. Pretrained VQ-VAE 이산 코드북을 기반으로 Subspace Restriction Module과 Anomaly Detection Module을 거쳐 2단계(Reconstruction + Upsampling) 다중 옵티마이저로 학습하며, train/evaluate/predict 3종 스모크 검증을 통과했다. 상세 구현 개요는 `docs/guides/anomaly-models.md` §3.17을 참조한다.
 
-## 4. 우선순위 표 (미구현 3개 모델)
+UniNet은 코드 포팅과 registry 등록, config 작성, offline 팩토리 구성을 완료했다. source/target teacher 이중 구조, attention bottleneck, DFS(Domain-related Feature Selection)를 결합해 AdamW split-LR(student+bottleneck+dfs @ 5e-3, target_teacher @ 1e-6)로 학습하며, train/evaluate/predict 3종 스모크 검증 및 10-epoch 학습(bottle, image_auroc 1.000, pixel_auroc 0.989)을 통과했다. `source_teacher`의 인스턴스 수준 `train` 오버라이드로 공통 engine의 매 epoch `model.train()` 재귀 호출에도 eval 고정을 유지한다. MVTec train split의 빈 target(`{}`)에 대해서는 all-zero-label로 대체하는데, `UniNetLoss` 상 실제 all-zero per-pixel mask와 수학적으로 동치임을 확인했다. 적대적 교차 검증(A5)에서 `weights_path=None` 시 teacher가 조용히 랜덤 초기화되는 지적이 있었으나, 이는 PatchCore/PaDiM/DFM/DFKDE/ReverseDistillation 등 기존 9개 이상 모델에 이미 존재하는 프로젝트 전역 설계(A1에서 이미 지적, 범위 밖으로 유보)와 동일 패턴이라 이번 세션에서는 수정하지 않았다.
+
+Dinomaly는 코드 포팅과 registry 등록, config 작성, offline 팩토리 구성을 완료했다. DINOv2-reg ViT-Base/14 encoder를 얼린 채 bottleneck MLP + ViT decoder만 학습하며, train/evaluate/predict 3종 스모크 검증 및 10-epoch 학습(bottle, image_auroc 1.000, pixel_auroc 0.990)을 통과했다. Upstream의 per-step `WarmCosineScheduler` + `StableAdamW`는 공통 engine이 `scheduler.step()`을 epoch당 1회만 호출하는 구조와 맞지 않아, `CflowAdapter`와 동일하게 adapter가 private optimizer/scheduler를 소유하고 매 배치 zero_grad/backward/step을 직접 수행한 뒤 zero dummy loss를 engine에 반환하는 방식으로 재현했다. 적대적 교차 검증(A5)에서 이 private step 이후 `.grad`를 재차 비우지 않아 engine 소유의(원래 no-op이어야 할) optimizer가 stale gradient로 한 번 더 업데이트를 가하는 Major 결함이 발견되어 즉시 수정했다(`CflowAdapter`의 fiber-후 `zero_grad()`와 동일 패턴). `data.image_size=[392,392]`는 upstream의 Resize(448)+CenterCrop(392) 근사치이며(현재 transform에 crop 단계 없음), 향후 개선 여지로 config에 명시했다. 상세 구현 개요는 `docs/dev/v0.2/reviews/A5.md`를 참조한다.
+
+AnomalyDINO는 코드 포팅과 registry 등록, config 작성, offline 팩토리 구성을 완료했다. DINOv2 ViT-Small/14 feature와 PatchCore와 동일한 `KCenterGreedy`/`AnomalyMapGenerator` 컴포넌트를 재사용하는 no-gradient memory-bank 모델이며, train/evaluate/predict 3종 스모크 검증(bottle, image_auroc 1.000, pixel_auroc 0.991)을 통과했다. PatchCore와 동일하게 1 epoch로 학습이 완결되는 fit-only 구조라 추가 epoch 학습은 수행하지 않았다.
+
+`DinoV2Loader`(신규 공유 컴포넌트 `components/dinov2/`)는 캐시 디렉터리를 `torch.hub.get_dir()/dinov2`로 하드코딩하므로, Dinomaly·AnomalyDINO 두 팩토리 모두 생성 구간에서만 `__init__`을 몽키패치해 로컬 `paths.backbone_root`를 가리키도록 전환한다(원본 파일 무수정). 적대적 교차 검증(A5)에서 `weights_path` 디렉터리에 `encoder_name`에 대응하는 정확한 파일이 없을 경우(예: selector와 어긋난 `--set` 오버라이드) `DinoV2Loader`가 조용히 네트워크 다운로드로 폴백할 수 있다는 Critical 지적이 있어, `DinoV2Loader`의 이름 파싱/경로 결정 로직을 재사용해 생성 전에 로컬 파일 존재를 강제 검증하는 `components/dinov2/local_preflight.py`를 신설해 수정했다.
+
+## 4. 우선순위 표 (전량 포팅 완료, 이력 보존용)
 
 ### 4.1 Tier 1 -- 기존 컴포넌트 재사용, anomalib SSOT 직접 적용
 
@@ -69,13 +80,7 @@ Tier 2 모델 3종(GANomaly, DRAEM, DSR) 전량 포팅 및 적대적 교차 검�
 
 ### 4.3 Tier 3 -- Foundation Model backbone, 추가 로컬 자산 확보 필요
 
-DINOv2 등 대형 pretrained backbone을 사용하며, 해당 가중치의 로컬 확보와 오프라인 로딩 방식 검증이 선행되어야 한다.
-
-| 순위 | 모델 | anomalib 경로 | 패러다임 | 학습 방식 | 근거 | 리스크/확인 필요 사항 |
-|---|---|---|---|---|---|---|
-| 8 | UniNet | `image/uninet` | Teacher-Student (multi-branch) | gradient training | attention bottleneck, DFS 등 고유 컴포넌트 다수 (`attention_bottleneck.py`, `dfs.py`) | anomalib에 존재하나 구조 복잡도 높음. backbone 가중치 로컬화 확인 |
-| 9 | DinoMaly | `image/dinomaly` | Reconstruction (ViT 기반) | gradient training | DINOv2 backbone 활용 anomaly detection | DINOv2 pretrained 가중치(`vit_base_patch14_dinov2.lvd142m` 등)의 로컬 확보 필요. `torch.hub` 자동 다운로드 차단 후 로컬 주입 방식 확인 |
-| 10 | AnomalyDINO | `image/anomaly_dino` | Feature Embedding (ViT 기반) | no-gradient 또는 lightweight | DINO/DINOv2 backbone feature 활용 | DINOv2 가중치 로컬 확보 필요. 학습 없는 few-shot/zero-shot 방식일 경우 기존 train-evaluate-predict 파이프라인과의 적합성 확인 필요 |
+Tier 3 모델 3종(UniNet, Dinomaly, AnomalyDINO) 전량 포팅 및 적대적 교차 검증(A5) 승인 완료. DINOv2 pretrained 가중치(small/base/large, reg4 variant 포함 6종)는 `/mnt/d/backbones/`에 이미 로컬 확보되어 있었으며, `DinoV2Loader`의 하드코딩된 캐시 디렉터리를 로컬 경로로 전환하는 팩토리 몽키패치와 존재 검증 preflight(`components/dinov2/local_preflight.py`)를 추가했다.
 
 ### 4.4 범위 밖 (레거시 defectvad에 없음)
 
@@ -122,7 +127,8 @@ DINOv2 등 대형 pretrained backbone을 사용하며, 해당 가중치의 로�
 
 - CFLOW의 `--resume` 시 decoder Adam 모멘텀 미보존 문제 -- 공통 engine에 adapter-state checkpoint 훅(`src/core/checkpoint.py`의 `adapter_state` 매개변수는 이미 존재하나 `src/core/engine.py`가 채우지 않는 미완성 확장점)을 추가하는 별도 과제로 이월. CS-Flow 등 이후 fiber/2단계 학습 모델에서도 같은 문제가 반복될 가능성이 높다.
 - DRAEM 착수 전 원칙3(오프라인) 저촉 여부 재검토 필요 -- synthetic anomaly 생성용 texture 데이터셋 로컬화 방법 확정 (§4.2 표의 "리스크" 열 참조).
-- DinoMaly/AnomalyDINO 착수 전 DINOv2 pretrained 가중치의 로컬 확보 방법 확정 필요.
+- (해결됨, A5) DINOv2 pretrained 가중치는 `/mnt/d/backbones/`에 이미 6종(small/base/large × 기본/reg4) 확보되어 있었다. `DinoV2Loader`의 하드코딩된 캐시 디렉터리 문제는 팩토리 몽키패치로, 존재 미검증 문제는 `components/dinov2/local_preflight.py`로 해결했다.
+- UniNet의 `weights_path=None` 시 teacher silent random-init -- PatchCore/PaDiM/DFM/DFKDE와 동일한 프로젝트 전역 패턴(다음 항목 참조), A5에서도 재확인했으나 이번 세션 범위 밖으로 유보.
 - DFM/DFKDE/CFA는 세 스크립트(train/evaluate/predict) 실행 자체는 사용자가 확인했다(2026-08-23). 3개 카테고리(bottle/carpet/capsule) 기준 정식 성능 비교와 수치 기록은 아직 없다 -- 필요 시 결과에 따라 config 하이퍼파라미터(특히 CFA `train.epochs`, DFM `score_type`)를 조정할 수 있다.
 - PatchCore/PaDiM/DFM/DFKDE의 `runtime.amp: true` 비호환 가능성, `weights_path=None` 시 silent random-init -- 적대적 검토(A1)에서 지적됐으나 9개 모델에 걸친 기존 설계라 이번 세션에서는 수정하지 않았다. 별도 과제로 core 변경 필요 (`UPSTREAM-INVENTORY.md` §14).
 - 각 모델 착수 시 `/add-anomalib-model` 스킬(`.claude/skills/add-anomalib-model/SKILL.md`)의 10단계(단계 0~9) 절차를 그대로 따르며, 이 문서의 순서를 갱신한다.
