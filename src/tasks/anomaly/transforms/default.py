@@ -39,11 +39,14 @@ class AnomalyTransform:
 
 
 @TRANSFORMS.register("anomaly_default")
-def build_anomaly_transform(image_size, train=True, normalize=True, **params):
+def build_anomaly_transform(image_size, train=True, normalize=True, mean=None, std=None, interpolation=None, **params):
+    resize_kwargs = {"antialias": True}
+    if interpolation is not None:
+        resize_kwargs["interpolation"] = getattr(v2.InterpolationMode, interpolation.upper())
     steps = [
-        v2.Resize(image_size, antialias=True),
+        v2.Resize(image_size, **resize_kwargs),
         v2.ToDtype({tv_tensors.Image: torch.float32, tv_tensors.Mask: torch.int64}, scale=True),
     ]
     if normalize:
-        steps.append(v2.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD))
+        steps.append(v2.Normalize(mean=mean or IMAGENET_MEAN, std=std or IMAGENET_STD))
     return AnomalyTransform(v2.Compose(steps))

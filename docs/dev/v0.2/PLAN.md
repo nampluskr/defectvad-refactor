@@ -4,13 +4,13 @@
 상위 문서: `BRIEF.md`
 관련 문서: `docs/guides/anomaly-models.md` (모델 구현 현황), `.claude/skills/add-anomalib-model/SKILL.md` (`/add-anomalib-model` 스킬 포팅 절차), `docs/dev/v0.1/reports/MODEL-ADD.md` (포팅 절차 원문)
 작성일: 2026-08-23
-최종 갱신: 2026-08-23
+최종 갱신: 2026-08-24
 
 ## 1. 배경
 
 레거시 `defectvad@14879ea2`에 구현된 anomaly detection 모델 **20개 전체**를 이 프로젝트(`cv_boilerplate` 기반 v0.2 refactor)에 포팅하는 것이 목표다. 현재 10개 모델이 구현 완료되었고, 남은 10개 모델을 이 문서의 우선순위에 따라 포팅한다.
 
-anomalib 핀 `091ca6a`(v2.3.0)의 `src/anomalib/models/image/` 디렉터리에 20개 모델 중 WinCLIP·VLM-AD를 제외한 **18개가 모두 존재**함을 확인했다. 레거시 defectvad에 없는 WinCLIP·VLM-AD는 이 PLAN의 범위 밖이다.
+anomalib 핀 `091ca6a`(v2.3.0)의 `src/anomalib/models/image/` 디렉터리에 20개 모델 중 VLM-AD를 제외한 **19개가 모두 존재**함을 확인했다(WinCLIP 포함). 레거시 defectvad에 없는 두 모델 중 WinCLIP은 로컬 CLIP 가중치 확보 이후 2026-08-24 확장 추가됐고(§3, §4.4 참조), VLM-AD는 외부 API 의존 가능성 때문에 여전히 이 PLAN의 범위 밖이다.
 
 ## 2. 우선순위 판단 기준
 
@@ -66,6 +66,8 @@ Dinomaly는 코드 포팅과 registry 등록, config 작성, offline 팩토리 �
 
 AnomalyDINO는 코드 포팅과 registry 등록, config 작성, offline 팩토리 구성을 완료했다. DINOv2 ViT-Small/14 feature와 PatchCore와 동일한 `KCenterGreedy`/`AnomalyMapGenerator` 컴포넌트를 재사용하는 no-gradient memory-bank 모델이며, train/evaluate/predict 3종 스모크 검증(bottle, image_auroc 1.000, pixel_auroc 0.991)을 통과했다. PatchCore와 동일하게 1 epoch로 학습이 완결되는 fit-only 구조라 추가 epoch 학습은 수행하지 않았다.
 
+**WinCLIP**(레거시 범위 밖 확장, 2026-08-24)은 코드 포팅과 registry 등록, config 작성, offline 팩토리 구성을 완료했다. §4.4에서 "레거시에 없음, 오프라인 원칙 저촉 우려"로 범위 밖 처리됐으나, 로컬 CLIP 가중치(`vit_base_patch16_plus_clip_240.laion400m_e31`, `/mnt/d/backbones/`에 확보됨)를 확인해 사용자 승인 하에 확장 추가했다. Frozen CLIP(ViT-B-16-plus-240)의 텍스트-이미지 프롬프트 앙상블 유사도만으로 동작하는 zero-/few-shot 모델이며, gradient 학습이 전혀 없다(`WinclipAdapter.train_step`은 모델을 호출하지 않고 dummy 0-loss만 반환). 텍스트(및 few-shot 시 시각) 임베딩은 `on_validation_start`에서 1회 수집한다. CLIP 전용 240x240 입력과 정규화 통계를 위해 `build_anomaly_transform`(공통 transform)에 `mean`/`std`/`interpolation` 파라미터를 추가했다. `BufferListMixin`(신규 components, 파일째 복사) 외 `DynamicBufferMixin`은 PatchCore 포팅분을 재사용했다. train/evaluate/predict 3종 스모크 검증(bottle, train image_auroc 0.995, evaluate image_auroc 0.981/pixel_auroc 0.877)을 통과했다. 반대 벤더(Codex CLI) 적대적 교차 검증(A6)에서 Major 1건(few-shot 참조 이미지 수집이 upstream `setup()`과 달리 학습 pass 이후 시점이라 shuffle 순서가 어긋남)과 Minor 1건(`class_name=""` 처리 차이)이 지적되어 모두 수정했다 — 임베딩 수집 로직을 `on_validation_start`에서 `on_fit_start`(학습 루프 시작 전)로 이동했다. 수정 후 zero-shot 회귀 없음(image_auroc 0.995 동일)을 재확인했고, 그동안 미검증이었던 few-shot(`k_shot=4`) 경로도 처음으로 정상 실행을 확인했다(image_auroc 1.000, pixel_auroc 0.933). 3개 카테고리 정식 성능 비교는 아직 수행하지 않았다. 상세 구현 개요는 `docs/guides/anomaly-models.md` §3.21, 파일 인벤토리는 `UPSTREAM-INVENTORY.md` §27, 검증 보고서는 `docs/dev/v0.2/reviews/A6.md`를 참조한다.
+
 `DinoV2Loader`(신규 공유 컴포넌트 `components/dinov2/`)는 캐시 디렉터리를 `torch.hub.get_dir()/dinov2`로 하드코딩하므로, Dinomaly·AnomalyDINO 두 팩토리 모두 생성 구간에서만 `__init__`을 몽키패치해 로컬 `paths.backbone_root`를 가리키도록 전환한다(원본 파일 무수정). 적대적 교차 검증(A5)에서 `weights_path` 디렉터리에 `encoder_name`에 대응하는 정확한 파일이 없을 경우(예: selector와 어긋난 `--set` 오버라이드) `DinoV2Loader`가 조용히 네트워크 다운로드로 폴백할 수 있다는 Critical 지적이 있어, `DinoV2Loader`의 이름 파싱/경로 결정 로직을 재사용해 생성 전에 로컬 파일 존재를 강제 검증하는 `components/dinov2/local_preflight.py`를 신설해 수정했다.
 
 ## 4. 우선순위 표 (전량 포팅 완료, 이력 보존용)
@@ -86,8 +88,18 @@ Tier 3 모델 3종(UniNet, Dinomaly, AnomalyDINO) 전량 포팅 및 적대적 �
 
 | 모델 | 사유 |
 |---|---|
-| WinCLIP | 레거시 defectvad에 없음. Vision-Language 모델, CLIP 가중치 필요, 오프라인 원칙 저촉 |
-| VLM-AD | 레거시 defectvad에 없음. VLM 기반, 외부 API 의존 가능성 |
+| VLM-AD | 레거시 defectvad에 없음. VLM 기반, 외부 API 의존 가능성. §4.4.1 참조 (사용자 확정, 2026-08-24) |
+
+WinCLIP은 최초 이 표에 포함되어 범위 밖으로 분류됐으나, 로컬 CLIP 가중치 확보 이후 2026-08-24 확장 추가되어 §3 "구현 완료" 표로 이동했다. VLM-AD는 WinCLIP과 달리 오프라인 자산 확보만으로 해소되지 않아 범위 밖으로 확정됐다.
+
+#### 4.4.1 VLM-AD 범위 밖 확정 사유 (2026-08-24, 사용자 확정)
+
+WinCLIP과 달리 다음 두 층위에서 이 프로젝트와 맞지 않는다.
+
+1. **오프라인 원칙(CON-003/004)** — `ChatGPT` 백엔드는 추론마다 OpenAI API를 실제로 호출해야 하므로 가중치를 로컬화하는 방식으로 해소되지 않는다. `Ollama` 백엔드는 `weights_path` 같은 파일 하나가 아니라 별도 상시 데몬 프로세스(`ollama serve`) 구동이 전제다. `Huggingface` 백엔드만 이론적으로 로컬화 가능하나 수GB~수십GB급 LLM 자산이 필요하다.
+2. **core engine과의 텐서 계약 불일치** — 이 프로젝트의 `MODELS.register` factory/adapter는 "`nn.Module`이 이미지 텐서를 받아 텐서를 반환"하는 것을 전제한다. VLM-AD의 모델은 `nn.Module`이 아니라 API/소켓 클라이언트이고, 입력도 텐서가 아닌 이미지 파일 경로 문자열이다. 출력도 연속 anomaly score/map이 아니라 텍스트 파싱 기반 이산 0/1 라벨이라 `image_auroc`/`pixel_auroc` 공통 metric 체계(§4.4 AUROC)와 맞지 않는다.
+
+WinCLIP은 1번만 해소하면 됐지만(로컬 CLIP 가중치 + 텐서 forward는 그대로 유지), VLM-AD는 1번과 2번을 모두 넘어야 해서 별도의 모델 클래스/adapter 계약이 필요하다. 이 규모의 아키텍처 확장은 이번 v0.2 리팩터링 범위 밖으로 판단해 포팅하지 않기로 확정했다.
 
 ## 5. 완료 검증 조건
 
@@ -132,6 +144,7 @@ Tier 3 모델 3종(UniNet, Dinomaly, AnomalyDINO) 전량 포팅 및 적대적 �
 - DFM/DFKDE/CFA는 세 스크립트(train/evaluate/predict) 실행 자체는 사용자가 확인했다(2026-08-23). 3개 카테고리(bottle/carpet/capsule) 기준 정식 성능 비교와 수치 기록은 아직 없다 -- 필요 시 결과에 따라 config 하이퍼파라미터(특히 CFA `train.epochs`, DFM `score_type`)를 조정할 수 있다.
 - PatchCore/PaDiM/DFM/DFKDE의 `runtime.amp: true` 비호환 가능성, `weights_path=None` 시 silent random-init -- 적대적 검토(A1)에서 지적됐으나 9개 모델에 걸친 기존 설계라 이번 세션에서는 수정하지 않았다. 별도 과제로 core 변경 필요 (`UPSTREAM-INVENTORY.md` §14).
 - 각 모델 착수 시 `/add-anomalib-model` 스킬(`.claude/skills/add-anomalib-model/SKILL.md`)의 10단계(단계 0~9) 절차를 그대로 따르며, 이 문서의 순서를 갱신한다.
+- WinCLIP은 레거시 20개 범위 밖 확장이라 §5.3 전체 포팅 완료 조건(레거시 20개 기준)에는 포함되지 않지만, §5.1 V-01~V-07과 적대적 교차 검증(V-08, A6, 2026-08-24)을 모두 충족했다. 3개 카테고리 정식 성능 비교(V-11)만 남았다.
 
 ## 7. 문서 갱신 규칙
 

@@ -1,0 +1,60 @@
+model:
+  name: winclip_anomaly
+  params:
+    weights_path: ${paths.backbone_root}/vit_base_patch16_plus_clip_240.laion400m_e31/open_clip_pytorch_model.bin
+    scales: [2, 3]
+
+adapter:
+  name: winclip
+  params:
+    # WinCLIP's anomaly map is a harmonic-averaged, bilinearly-upsampled similarity
+    # score with no internal blur (winclip/torch_model.py WinClipModel.forward just
+    # calls interpolate), so the common postprocess smoother provides it, same as DFM.
+    smooth_sigma: 4.0
+    # class_name: null lets the adapter infer the prompt-ensemble class from the
+    # dataset's `category` attribute (e.g. "bottle") at on_validation_start.
+    class_name: null
+    # 0 = zero-shot (text-only). Set > 0 for few-shot: that many normal training
+    # images are collected as visual reference embeddings before the first validation.
+    k_shot: 0
+
+optim:
+  # WinCLIP does no gradient training -- anomalib's configure_optimizers returns
+  # None. The common engine always requires an optimizer, so one is declared here
+  # and is a guaranteed no-op: WinClipModel.forward (and the embedding-collection
+  # helpers setup() calls) are @torch.no_grad, so no gradient ever reaches the CLIP
+  # backbone and optimizer.step() changes nothing. Parameters are deliberately left
+  # requires_grad=True -- freezing them would leave build_optimizer with an empty
+  # parameter list, which PyTorch rejects (same rationale as DFM/PatchCore).
+  optimizer:
+    name: adam
+    params:
+      lr: 0.001
+
+train:
+  # anomalib trainer_arguments: no training loop (LearningType.ZERO_SHOT/FEW_SHOT).
+  # A single pass over the training set is kept only for architectural consistency
+  # with the other no-grad models (DFM, PatchCore); WinclipAdapter.train_step does
+  # not even call the model. Text (and, for k_shot>0, visual) embeddings are
+  # collected once in on_validation_start, before the first validation.
+  epochs: 1
+  grad_clip: null
+
+data:
+  # WinCLIP's CLIP backbone (ViT-B-16-plus-240) has a fixed 240x240 input and its
+  # own CLIP-specific normalization statistics (winclip/lightning_model.py
+  # configure_pre_processor), which differ from this project's ImageNet defaults.
+  image_size: [240, 240]
+  transform:
+    train:
+      name: anomaly_default
+      params:
+        interpolation: bicubic
+        mean: [0.48145466, 0.4578275, 0.40821073]
+        std: [0.26862954, 0.26130258, 0.27577711]
+    eval:
+      name: anomaly_default
+      params:
+        interpolation: bicubic
+        mean: [0.48145466, 0.4578275, 0.40821073]
+        std: [0.26862954, 0.26130258, 0.27577711]

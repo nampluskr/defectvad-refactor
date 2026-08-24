@@ -996,7 +996,47 @@ Upstream `AnomalyDino`는 gradient 학습이 없는 memory-bank 모델이다. `t
 - `predict.py` (MVTec bottle test broken_large 20장): 추론 및 시각화 저장 정상 완료 (1.2 img/s)
 - fit-only 구조라 10-epoch 재학습은 수행하지 않음 (PatchCore와 동일하게 1 epoch로 완결)
 
-## 27. 미완 항목
+## 27. 모델 연결 — WinCLIP (레거시 범위 밖 확장)
+
+레거시 defectvad 20개 모델에는 없으며, `PLAN.md` §4.4에서 "오프라인 원칙 저촉 우려"로 한 차례 범위 밖 처리됐다가 로컬 CLIP 가중치(`/mnt/d/backbones/vit_base_patch16_plus_clip_240.laion400m_e31/open_clip_pytorch_model.bin`, 795M) 확보 이후 확장 추가됐다.
+
+### 27.1 `lightning_model.py` 이관 결과
+
+Upstream `WinClip`은 `LearningType.ZERO_SHOT`(`k_shot=0`) 또는 `FEW_SHOT`으로, `configure_optimizers`가 `None`을 반환하는 gradient-free 모델이다. `setup()` Lightning hook이 학습 시작 전 텍스트 프롬프트 앙상블 임베딩(및 few-shot이면 참조 이미지 임베딩)을 1회 계산해 모델에 주입하고, `validation_step`/`test_step`이 `self.model(batch.image)`로 `InferenceBatch`를 반환한다. `training_step`은 아예 없다(zero-shot은 학습 루프 자체가 없다).
+
+이 프로젝트에서는:
+- Training step: `WinclipAdapter.train_step`이 모델을 전혀 호출하지 않고 grad를 요구하는 detached leaf 0-loss만 반환 — `WinClipModel.forward`는 텍스트 임베딩이 없으면 예외를 내므로, 임베딩이 갖춰지기 전(1 epoch째 학습 구간)에는 호출 자체가 불가능하다.
+- Embedding 수집: `WinclipAdapter.on_validation_start`가 `model.setup(class_name, ref_images)`를 1회 호출(`_is_setup` 플래그로 재실행 방지) — CFA/PatchCore류의 "validation 전 1회 준비" 패턴과 동일한 시점.
+- 클래스명: `adapter.params.class_name`으로 명시하거나, 미지정 시 `loaders["valid"/"train"/"test"].dataset.category`에서 추론한다(`_infer_class_name`).
+- CLIP 백본 생성: `open_clip.create_model_and_transforms`를 생성자 호출 한 문장 동안만 `pretrained=None`으로 monkeypatch해 원격 조회를 차단(`build_stfpm`의 `pretrained=False` 치환과 동일 패턴)한 뒤, 로컬 `.bin`을 `model.clip.load_state_dict(strict=True)`로 직접 주입한다. `class_name`은 팩토리 시점에는 넘기지 않는다 — 넘기면 랜덤 초기화 CLIP으로 텍스트 임베딩을 미리 계산해버리기 때문이다(§27.1 상단 setup 시점 참조).
+- Transform: CLIP 자체 240x240 입력과 CLIP 전용 정규화 통계(`mean=[0.48145466, 0.4578275, 0.40821073]`, `std=[0.26862954, 0.26130258, 0.27577711]`)가 ImageNet 기본값과 달라, `build_anomaly_transform`(`src/tasks/anomaly/transforms/default.py`)에 `mean`/`std`/`interpolation` 파라미터를 추가해 model config에서 덮어쓰도록 확장했다. 이 확장은 공통 transform 코드 변경이지만 특정 모델명 분기가 아니라 일반 파라미터 추가라 NFR-005 위반은 아니다.
+
+### 27.2 신규 components — `BufferListMixin`
+
+`torch_model.py`가 `anomalib.models.components`에서 `BufferListMixin`과 `DynamicBufferMixin`을 함께 import한다. `DynamicBufferMixin`은 PatchCore 포팅 때 이미 `components/base/dynamic_buffer.py`로 복사되어 있어 재사용했다. `BufferListMixin`은 이번에 처음 필요해 `components/base/buffer_list.py`로 파일째 신규 복사했다(diff 0라인, import 치환 없음 — 이 파일 자체는 프로젝트 코드를 참조하지 않는다).
+
+### 27.3 optimizer — 학습 대상 없음, 형식상 no-op
+
+WinCLIP은 CLIP 파라미터를 전부 freeze하지 않는다(`requires_grad=True`로 둔다) — freeze하면 `build_optimizer`에 전달할 파라미터가 없어 PyTorch가 빈 parameter group을 거부하기 때문이다(DFM/PatchCore와 동일 근거). `forward`와 embedding 수집 helper가 전부 `@torch.no_grad`이므로 optimizer가 실제로 어떤 파라미터도 갱신하지 않는다는 점은 CLIP weight 자체에서 보장된다.
+
+### 27.4 스모크 검증 결과 (2026-08-24)
+
+- `train.py` (MVTec bottle, 1 epoch, zero-shot): 정상 완료, image_auroc 0.995
+- `evaluate.py` (MVTec bottle, test): image_auroc 0.981, pixel_auroc 0.877
+- `predict.py` (MVTec bottle test/broken_large 20장): 추론 및 시각화 저장 정상 완료
+- V-01(원본 무결성): `torch_model.py`는 import 3줄 치환 외 diff 0, `prompting.py`/`utils.py`는 완전 동일
+- V-02(Lightning 미사용): `grep -rn lightning src/tasks/anomaly/models/winclip/ src/tasks/anomaly/adapters/winclip.py` 결과 없음
+- 3개 카테고리(bottle/carpet/capsule) 기준 정식 성능 비교는 **사용자 실행 대기**
+
+### 27.5 적대적 교차 검증 A6 (2026-08-24, Codex CLI) — Major 1건, Minor 1건 수정
+
+- **Major — few-shot 참조 이미지 수집 시점**: `WinclipAdapter`가 참조 이미지를 첫 validation 직전(학습 pass 이후)에 수집해, upstream `WinClip.setup()`(트레이너 `fit()` 시작 **전** 호출)과 shuffle 순서가 어긋났다. `loaders["train"]`을 학습 pass가 먼저 한 번 순회하면 이후 참조 이미지 추출 시 뽑히는 표본이 upstream과 달라진다.
+  - **조치**: 임베딩 수집 로직 전체를 `on_validation_start`에서 `on_fit_start`(`Engine.fit()`이 학습 루프 진입 전 호출, `src/core/engine.py:45`)로 이동했다. `evaluate.py`/`predict.py`는 이 hook을 아예 호출하지 않으므로(체크포인트의 persistent buffer 재사용) 영향받지 않는다.
+- **Minor — `class_name=""` 처리**: `self.class_name or ...`가 명시적 빈 문자열을 미지정으로 취급하던 것을 `self.class_name is not None` 조건으로 수정해 upstream `_get_class_name()`과 동일하게 맞췄다.
+- **재검증**: zero-shot(bottle, `k_shot=0`) image_auroc 0.995로 수정 전과 동일(회귀 없음). few-shot(bottle, `k_shot=4`, 최초 실행 검증) image_auroc 1.000, pixel_auroc 0.933으로 정상 완료.
+- 상세: `docs/dev/v0.2/reviews/A6.md`
+
+## 28. 미완 항목
 
 - FastFlow `train.epochs: 100`은 잠정값이다. 핀된 클론에 `examples/configs`가 sparse-checkout되어 있지 않아 anomalib의 공식 학습 예산을 확인하지 못했다.
 - 3개 카테고리(bottle, carpet, capsule) 기준 정식 성능 비교(수치 기록) — **사용자 실행 대기**. PaDiM·Reverse Distillation·DFM·DFKDE·CFA·CFLOW·FRE·U-Flow·CS-Flow·SuperSimpleNet·GANomaly·DRAEM·DSR 포함.
@@ -1022,8 +1062,9 @@ Upstream `AnomalyDino`는 gradient 학습이 없는 memory-bank 모델이다. `t
 - UniNet/Dinomaly/AnomalyDINO 3개 카테고리(bottle/carpet/capsule) 기준 정식 성능 비교 — **사용자 실행 대기**.
 - Dinomaly `data.image_size=[392,392]`는 upstream Resize(448)+CenterCrop(392)의 근사치다. `anomaly_default` transform에 center-crop 단계를 추가하면(공통 코드 변경, 2개 이상 모델에서 필요 확인 시) 더 정확히 재현 가능.
 - Dinomaly `train.epochs: 100`, UniNet `train.epochs: 100`은 잠정값이다(upstream trainer_arguments가 epoch 대신 max_steps=5000 또는 빈 dict를 사용).
+- WinCLIP 3개 카테고리(bottle/carpet/capsule) 기준 정식 성능 비교 — **사용자 실행 대기**.
 
 ---
 
 작성일: 2026-08-23 (최종 갱신 2026-08-24)
-문서 상태: FastFlow·PatchCore·PaDiM·Reverse Distillation·DFM·DFKDE·CFA·CFLOW·FRE·U-Flow·CS-Flow·SuperSimpleNet·GANomaly·DRAEM·DSR·UniNet·Dinomaly·AnomalyDINO 추가 산출물 (anomalib `091ca6a` 기준) + 사용자 실학습 결함 3건 수정 기록(§23) + Tier 3 적대적 검토 A5 결함 2건 수정 기록(§24~26)
+문서 상태: FastFlow·PatchCore·PaDiM·Reverse Distillation·DFM·DFKDE·CFA·CFLOW·FRE·U-Flow·CS-Flow·SuperSimpleNet·GANomaly·DRAEM·DSR·UniNet·Dinomaly·AnomalyDINO 추가 산출물 (anomalib `091ca6a` 기준) + 사용자 실학습 결함 3건 수정 기록(§23) + Tier 3 적대적 검토 A5 결함 2건 수정 기록(§24~26) + WinCLIP(레거시 범위 밖 확장) 추가 산출물 및 스모크 검증 기록(§27) + WinCLIP 적대적 검토 A6 결함 2건 수정 기록(§27.5)

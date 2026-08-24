@@ -28,8 +28,9 @@
 | Teacher–Student / Foundation Model 무관 | UniNet | source/target 이중 teacher + attention bottleneck + DFS | 구현됨 | 지원 (split-LR AdamW) | 지원 | 지원 | `wide_resnet50_2` | backbone 가중치 |
 | Reconstruction / DINOv2 ViT | Dinomaly | frozen DINOv2 ViT encoder + bottleneck/decoder feature 재구성 | 구현됨 | 지원 (adapter 소유 private optimizer/scheduler, §4.2) | 지원 | 지원 | `dinov2reg_vit_base_14` | DINOv2 pretrained 가중치 |
 | Feature Embedding / Memory Bank (DINOv2 ViT) | AnomalyDINO | DINOv2 ViT patch feature memory bank, no-gradient | 구현됨 | 지원 (fit-only, 1 epoch로 완결) | 지원 | 지원 | `dinov2_vit_small_14` | DINOv2 pretrained 가중치 |
+| Vision-Language / Zero-Shot | WinCLIP | CLIP 텍스트-이미지 프롬프트 앙상블 유사도, no-gradient | 구현됨 | 지원 (zero-shot; 실질적 파라미터 학습 없음) | 지원 | 지원 | `ViT-B-16-plus-240` (laion400m_e31) | CLIP pretrained 가중치 |
 
-스무 모델은 `src/tasks/anomaly/models/` 아래의 pure-PyTorch 모델과 `src/tasks/anomaly/adapters/` 아래의 lifecycle adapter로 구성된다. 학습 열의 `지원`은 gradient 학습만을 뜻하지 않는다. PatchCore의 학습 단계는 파라미터 최적화 대신 정상 이미지의 embedding을 수집하고 memory bank를 구축한다. DFKDE와 GANomaly는 이미지 단위 anomaly score만 산출하므로 평가·시각화에서 pixel 단위 지표를 제공하지 않는다.
+레거시 defectvad의 20개 모델(WinCLIP은 레거시 범위 밖의 확장 추가, `docs/dev/v0.2/PLAN.md` §4.4 참조)은 `src/tasks/anomaly/models/` 아래의 pure-PyTorch 모델과 `src/tasks/anomaly/adapters/` 아래의 lifecycle adapter로 구성된다. 학습 열의 `지원`은 gradient 학습만을 뜻하지 않는다. PatchCore의 학습 단계는 파라미터 최적화 대신 정상 이미지의 embedding을 수집하고 memory bank를 구축한다. DFKDE와 GANomaly는 이미지 단위 anomaly score만 산출하므로 평가·시각화에서 pixel 단위 지표를 제공하지 않는다.
 
 ## 2. 모델 분류 체계
 
@@ -93,6 +94,14 @@ FRE는 고정된 CNN backbone feature를 Tied AutoEncoder(가중치 공유 선�
 - SuperSimpleNet
 
 SuperSimpleNet은 사전 학습된 backbone feature를 2배 업스케일링 및 풀링한 뒤, 1x1 projection adapter와 train-time anomaly generator를 통해 생성된 합성 이상 feature를 판별하여 빠른 속도와 높은 분별력을 동시에 확보한다.
+
+### 2.7 Vision-Language / Zero-Shot
+
+정상/이상을 서술하는 텍스트 프롬프트 앙상블과 이미지 patch embedding 사이의 CLIP 유사도를 anomaly signal로 사용한다. Gradient 학습이 없다.
+
+- WinCLIP
+
+WinCLIP은 frozen CLIP(ViT-B-16-plus-240)의 이미지 인코더가 만든 patch-level embedding과, 클래스명을 채워 넣은 정상/이상 프롬프트 텍스트 임베딩 사이의 코사인 유사도를 여러 window 스케일에서 계산하고 harmonic aggregation으로 합쳐 anomaly map을 만든다. `k_shot > 0`이면 정상 참조 이미지의 patch embedding도 함께 비교해 few-shot 신호를 더한다.
 
 ## 3. 모델별 구현 개요
 
@@ -590,6 +599,25 @@ AnomalyDINO는 frozen DINOv2 ViT의 patch feature를 memory bank에 저장하고
 | `coreset_subsampling` | `bool` | `False` | `True`/`False` | greedy coreset 축소 사용 여부 |
 | `sampling_ratio` | `float` | `0.1` | `0.0` ~ `1.0` | coreset 샘플링 비율 |
 
+### 3.21 WinCLIP
+
+WinCLIP은 frozen CLIP 텍스트-이미지 유사도만으로 동작하는 zero-/few-shot 모델이다. 레거시 defectvad에는 없으며, 오프라인 원칙 저촉 우려로 `docs/dev/v0.2/PLAN.md`에서 한 차례 범위 밖으로 분류됐다가 로컬 CLIP 가중치 확보 이후 확장 추가됐다.
+
+- 모델 factory: `winclip_anomaly` (별칭: `winclip`)
+- Adapter: `winclip`
+- Config: `configs/anomaly/models/winclip.yaml`
+- 기본 backbone: `ViT-B-16-plus-240` (open_clip, pretrained tag `laion400m_e31`)
+- 학습 대상: 없음 (CLIP 전체 freeze, gradient는 어디에도 도달하지 않음)
+- 로컬 자산: `${paths.backbone_root}/vit_base_patch16_plus_clip_240.laion400m_e31/open_clip_pytorch_model.bin`
+- 구현 특이사항: `WinclipAdapter.train_step`은 모델을 호출하지 않고 grad를 요구하는 detached leaf 0-loss만 반환한다(엔진 계약 충족용). 텍스트(및 `k_shot > 0`이면 시각) 임베딩은 `on_validation_start`에서 1회만 수집한다 — `WinClipModel.forward`가 이 임베딩이 없으면 예외를 내기 때문에 첫 validation 이전에는 모델을 호출할 수 없다. 클래스명은 `adapter.params.class_name`으로 명시하거나 미지정 시 데이터셋의 `category` 속성에서 추론한다. CLIP은 자체 240x240 입력 크기와 CLIP 전용 정규화 통계를 쓰므로 `data.image_size`와 `transform.*.params.mean/std/interpolation`을 모델 config에서 덮어쓴다(§4.2의 `build_anomaly_transform` 확장 참조).
+
+#### 모델 파라미터
+
+| 파라미터 | 타입 | 기본값 | 지원값 | 설명 |
+|---|---|---|---|---|
+| `weights_path` | `str \| None` | `${paths.backbone_root}/vit_base_patch16_plus_clip_240.laion400m_e31/open_clip_pytorch_model.bin` | 로컬 파일 경로 | open_clip CLIP checkpoint (`.bin`) |
+| `scales` | `tuple[int, ...]` | `(2, 3)` | window scale의 정수 시퀀스 | multi-scale patch window aggregation에 쓰이는 scale 집합 |
+
 ## 4. 공통 통합 구조
 
 ### 4.1 모델 코드와 SSOT
@@ -621,6 +649,7 @@ Adapter가 담당하는 모델별 동작은 다음과 같다.
 | GANomaly | Generator/Discriminator 이원 적대적 손실 계산 및 전용 Dual Adam 옵티마이저 스텝 |
 | DRAEM | DTD/Perlin 합성 인공 결함 생성 및 Reconstructive-Discriminative 복합 손실 계산 |
 | DSR | 2단계 학습 모듈 전환(Reconstruction / Upsampling) 및 다중 옵티마이저 스텝 |
+| WinCLIP | validation 전 텍스트/시각 프롬프트 임베딩 1회 수집 (`on_validation_start`), 학습 단계에서는 모델을 호출하지 않음 |
 
 CFLOW, GANomaly, DSR은 이 표의 다른 모델과 달리 공통 engine의 단일 optimizer에 의존하지 않고, 각각의 adapter가 전용 private optimizer들을 직접 소유·스케줄링하여 다단계/다중 최적화를 완벽히 수행한다.
 
@@ -664,6 +693,7 @@ anomaly map과 anomaly score는 모델마다 스케일이 크게 다르므로(CS
 | UniNet | `${paths.backbone_root}/wide_resnet50_2-95faca4d.pth` |
 | Dinomaly | `${paths.backbone_root}/dinov2_vitb14_reg4_pretrain.pth` (디렉터리 전체 `dinov2_vit*_[reg4_]pretrain.pth` 필요) |
 | AnomalyDINO | `${paths.backbone_root}/dinov2_vits14_pretrain.pth` (디렉터리 전체 `dinov2_vit*_pretrain.pth` 필요) |
+| WinCLIP | `${paths.backbone_root}/vit_base_patch16_plus_clip_240.laion400m_e31/open_clip_pytorch_model.bin` |
 
 Selector로 backbone이나 모델 크기를 변경하면 해당 selector가 지정하는 가중치 경로도 함께 적용된다. 경로는 config placeholder를 유지하고 제품 코드에 하드코딩하지 않는다.
 
@@ -691,6 +721,7 @@ Selector로 backbone이나 모델 크기를 변경하면 해당 selector가 지�
 | GANomaly | `torch`, `torchvision` |
 | DRAEM | `kornia`, `torchvision` |
 | DSR | `kornia`, `torchvision` |
+| WinCLIP | `open_clip_torch` |
 
 현재 `requirements.txt`에는 일부 모델 패키지가 명시되어 있지 않다. 실행 전 `pytorch_env`에 대상 모델의 패키지가 준비되어 있는지 확인해야 하며, 프로젝트 규칙에 따라 실행 중 자동 설치는 수행하지 않는다.
 
@@ -716,6 +747,7 @@ Selector로 backbone이나 모델 크기를 변경하면 해당 selector가 지�
 --model configs/anomaly/models/ganomaly.yaml
 --model configs/anomaly/models/draem.yaml
 --model configs/anomaly/models/dsr.yaml
+--model configs/anomaly/models/winclip.yaml
 ```
 
 전체 명령어와 selector, override 사용법은 [CLI 사용 가이드](./cli-usage.md)를 참고한다.

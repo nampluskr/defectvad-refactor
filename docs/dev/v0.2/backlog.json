@@ -3,6 +3,7 @@
   "version": "v0.2",
   "created": "2026-08-23",
   "updated": "2026-08-24",
+  "note": "레거시 defectvad 20개 모델 포팅은 완료됐다(P0~P7). WinCLIP(P9)은 레거시 범위 밖 확장이며 P8(20개 최종 벤치마크)과 별개로 진행된다.",
   "scope": "레거시 defectvad 20개 anomaly detection 모델 전체를 cv_boilerplate 기반 v0.2 아키텍처로 포팅 및 검증",
   "remote_repository": "https://github.com/nampluskr/defectvad-refactor",
   "reference_repositories": {
@@ -565,6 +566,73 @@
             "V-09",
             "V-10"
           ]
+        }
+      ]
+    },
+    {
+      "id": "P9",
+      "title": "WinCLIP 확장 포팅 (레거시 20개 범위 밖)",
+      "status": "in_progress",
+      "depends_on": [
+        "P7"
+      ],
+      "note": "레거시 defectvad 20개 모델에는 없다. PLAN.md §4.4에서 오프라인 원칙 저촉 우려로 범위 밖 처리됐다가, 로컬 CLIP 가중치(/mnt/d/backbones/vit_base_patch16_plus_clip_240.laion400m_e31) 확보 이후 사용자 승인 하에 확장 추가됐다. P8(레거시 20개 최종 검증)과는 독립적이다.",
+      "exit_criteria": [
+        "WinCLIP 모델 포팅 완료 (V-01~V-07)",
+        "3개 카테고리(bottle, carpet, capsule) 벤치마크 결과 집계",
+        "적대적 교차 검증 통과 (Critical 0건)",
+        "PLAN.md / anomaly-models.md / UPSTREAM-INVENTORY.md 갱신"
+      ],
+      "tasks": [
+        {
+          "id": "P9-T01",
+          "title": "WinCLIP 모델 포팅 및 zero-/few-shot 어댑터 구현",
+          "status": "done",
+          "skill_ref": "/add-anomalib-model",
+          "models": [
+            "winclip"
+          ],
+          "paradigm": "Vision-Language / Zero-Shot",
+          "learning_type": "no-gradient (zero-shot; k_shot>0이면 few-shot)",
+          "verification_conditions": [
+            "V-01",
+            "V-02",
+            "V-03",
+            "V-04",
+            "V-05",
+            "V-06",
+            "V-07"
+          ],
+          "description": "anomalib image/winclip 모델을 models/winclip/에 복사, WinclipAdapter 구현, BufferListMixin 신규 components 추가, build_anomaly_transform에 mean/std/interpolation 파라미터 확장. 2026-08-24 train/evaluate/predict 스모크 검증 완료 (bottle, train image_auroc 0.995, evaluate image_auroc 0.981/pixel_auroc 0.877)."
+        },
+        {
+          "id": "P9-T02a",
+          "title": "WinCLIP 적대적 교차 검증 (A6)",
+          "status": "done",
+          "review_ref": "docs/dev/v0.2/reviews/A6.md",
+          "verification_conditions": [
+            "V-08"
+          ],
+          "description": "Codex CLI 검증 (2026-08-24). Major 1건(few-shot 참조 이미지 수집 시점이 upstream setup()과 달리 학습 pass 이후라 shuffle 순서 어긋남), Minor 1건(class_name=\"\" 처리 차이) 지적, 모두 수정 완료. 수정 후 zero-shot 회귀 없음 재확인, few-shot(k_shot=4) 최초 실행 검증 완료."
+        },
+        {
+          "id": "P9-T02b",
+          "title": "WinCLIP 3개 카테고리 벤치마크",
+          "status": "pending",
+          "verification_conditions": [
+            "V-11"
+          ],
+          "description": "사용자 실행으로 bottle/carpet/capsule 성능 집계."
+        },
+        {
+          "id": "P9-T03",
+          "title": "WinCLIP 문서 최종 동기화",
+          "status": "done",
+          "verification_conditions": [
+            "V-09",
+            "V-10"
+          ],
+          "description": "PLAN.md §3/§4.4, anomaly-models.md §1/§2.7/§3.21/§4.2/§5, UPSTREAM-INVENTORY.md §27 갱신 완료 (2026-08-24). 벤치마크/적대적 검증 결과는 P9-T02 완료 후 추가 반영 필요."
         }
       ]
     },

@@ -19,6 +19,7 @@ from .stfpm import StfpmAdapter
 from .supersimplenet import SupersimplenetAdapter
 from .uflow import UflowAdapter
 from .uninet import UniNetAdapter
+from .winclip import WinclipAdapter
 
 __all__ = [
     "AnomalyAdapter",
@@ -42,5 +43,6 @@ __all__ = [
     "SupersimplenetAdapter",
     "UflowAdapter",
     "UniNetAdapter",
+    "WinclipAdapter",
     "anomaly_collate",
 ]

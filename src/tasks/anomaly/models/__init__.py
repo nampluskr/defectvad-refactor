@@ -21,6 +21,7 @@ from src.tasks.anomaly.models.supersimplenet import SupersimplenetModel, build_s
 from src.tasks.anomaly.models.uninet import UniNetModel, build_uninet
 from src.tasks.anomaly.models.dinomaly import DinomalyModel, build_dinomaly
 from src.tasks.anomaly.models.anomaly_dino import AnomalyDINOModel, build_anomaly_dino
+from src.tasks.anomaly.models.winclip import WinClipModel, build_winclip
 
 __all__ = [
     "STFPMModel",
@@ -63,4 +64,6 @@ __all__ = [
     "build_dinomaly",
     "AnomalyDINOModel",
     "build_anomaly_dino",
+    "WinClipModel",
+    "build_winclip",
 ]
