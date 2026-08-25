@@ -2,8 +2,8 @@
   "schema_version": "1.0",
   "version": "v0.2",
   "created": "2026-08-23",
-  "updated": "2026-08-24",
-  "note": "레거시 defectvad 20개 모델 포팅은 완료됐다(P0~P7). WinCLIP(P9)은 레거시 범위 밖 확장이며 P8(20개 최종 벤치마크)과 별개로 진행된다.",
+  "updated": "2026-08-25",
+  "note": "레거시 defectvad 20개 모델 포팅은 완료됐다(P0~P7). WinCLIP(P9)은 레거시 범위 밖 확장이며 P8(20개 최종 벤치마크)과 별개로 진행된다. 2026-08-25: feat/v0.2-refactor를 main에 머지하고 v0.2 포팅 단계를 마무리한다. P9-T02b(WinCLIP 벤치마크), P8(전체 벤치마크·최종 검증)은 pending 상태로 이월하며, main 머지 이후 평가 단계에서 진행한다.",
   "scope": "레거시 defectvad 20개 anomaly detection 모델 전체를 cv_boilerplate 기반 v0.2 아키텍처로 포팅 및 검증",
   "remote_repository": "https://github.com/nampluskr/defectvad-refactor",
   "reference_repositories": {
